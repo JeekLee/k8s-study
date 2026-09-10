@@ -695,6 +695,65 @@ virsh list --all                  # VM 상태
 
 ---
 
+## VM을 추가로 만들 때 — 요약 체크리스트
+
+Stage 3·4에서 이 절차를 여러 번 반복하게 된다.
+**두 번째부터가 위험하다** — 문서 대신 기억에 의존하게 되기 때문이다.
+
+**VM 하나 = 디스크 + seed + virt-install, 세 단계다.**
+
+```bash
+VM=k2-w1
+MAC=52:54:00:00:02:21          # ← 반드시 확인
+MEM=8192; CPU=4                # 워커는 8G/4, control plane 은 4G/2
+
+# ① 디스크
+sudo qemu-img create -f qcow2 \
+  -F qcow2 -b /var/lib/libvirt/images/base/ubuntu-24.04-server-cloudimg-amd64.img \
+  /var/lib/libvirt/images/$VM.qcow2 40G
+
+# ② seed — user-data 의 hostname/fqdn, meta-data 의 instance-id 를 모두 $VM 으로
+mkdir -p ~/vm/$VM && cd ~/vm/$VM
+# (user-data, meta-data 작성)
+cloud-localds seed.iso user-data meta-data
+sudo mv seed.iso /var/lib/libvirt/images/$VM-seed.iso
+
+# ③ 생성
+sudo virt-install --name $VM --memory $MEM --vcpus $CPU \
+  --disk path=/var/lib/libvirt/images/$VM.qcow2,format=qcow2 \
+  --disk path=/var/lib/libvirt/images/$VM-seed.iso,device=cdrom \
+  --network network=k8snet,mac=$MAC \
+  --os-variant ubuntu24.04 --graphics none --import --noautoconsole
+```
+
+### 주소·MAC 대응표
+
+| VM | MAC | IP | 역할 |
+|---|---|---|---|
+| `k2-cp1` | `52:54:00:00:02:11` | 192.168.122.11 | control plane |
+| `k2-w1` | `52:54:00:00:02:21` | 192.168.122.21 | worker |
+| `k2-w2` | `52:54:00:00:02:22` | 192.168.122.22 | worker |
+| `k1-cp1` | `52:54:00:00:01:11` | 192.168.121.11 | control plane (Stage 4) |
+| `k1-cp2` | `52:54:00:00:01:12` | 192.168.121.12 | control plane (Stage 4) |
+| `k1-w1` | `52:54:00:00:01:21` | 192.168.121.21 | worker (Stage 4) |
+
+### 만든 뒤 반드시 확인
+
+```bash
+virsh domifaddr $VM       # 예약한 IP 가 나오는가
+ssh ubuntu@<IP> hostname  # 계획한 이름이 나오는가
+```
+
+> ⚠️ **libvirt의 MAC 중복 검사를 믿지 말 것.**
+> 다른 VM이 쓰는 MAC은 거부하지만, **오타지만 아무도 안 쓰는 MAC은 통과한다.**
+> 그러면 DHCP 예약에 없어 `.200~.250` 풀에서 임의 IP를 받고,
+> VM은 정상으로 보이는데 **주소 계획이 조용히 깨진다.**
+>
+> ⚠️ **`instance-id`를 VM마다 다르게.** 같으면 cloud-init이
+> "이미 처리한 인스턴스"로 보고 건너뛰어 계정이 생기지 않는다.
+
+---
+
 ## 완료 후
 
 - [`labs/stage-01-virtualization.md`](../../labs/stage-01-virtualization.md)에 실제로 친 명령과 출력을 기록

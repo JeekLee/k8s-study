@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | 일자 | 2026-09-10 |
-| 소요 | 약 1.5시간 |
+| 소요 | 약 2시간 (워커 2대 추가 포함) |
 | 결과 | ✅ 완료 |
 | 대상 | k8s-2 (32 vCPU / 251 GiB) |
 
@@ -337,6 +337,67 @@ ssh ubuntu@192.168.122.11 'sudo apt-get update'
 `virsh domifaddr`은 VM이 부팅 중이어도 `.11`을 바로 보여줬다.
 DHCP 예약이라 libvirt가 미리 알고 있기 때문이다.
 
+### 12. 워커 VM 2대 추가 (`k2-w1`, `k2-w2`)
+
+같은 절차를 두 번 반복했다. `k2-cp1`의 `user-data`를 복사해 수정하는 방식으로 진행.
+
+```bash
+mkdir -p ~/vm/k2-w1 ~/vm/k2-w2
+cd ~/vm/k2-cp1
+cp user-data ../k2-w1/user-data
+cp user-data ../k2-w2/user-data
+# 각각 hostname / fqdn / instance-id 를 수정
+```
+
+디스크 → seed → virt-install 순서로 각각 생성:
+
+```bash
+sudo qemu-img create -f qcow2 \
+  -F qcow2 -b /var/lib/libvirt/images/base/ubuntu-24.04-server-cloudimg-amd64.img \
+  /var/lib/libvirt/images/k2-w1.qcow2 40G
+
+cloud-localds seed.iso user-data meta-data
+sudo mv seed.iso /var/lib/libvirt/images/k2-w1-seed.iso
+
+sudo virt-install \
+  --name k2-w1 --memory 8192 --vcpus 4 \
+  --disk path=/var/lib/libvirt/images/k2-w1.qcow2,format=qcow2 \
+  --disk path=/var/lib/libvirt/images/k2-w1-seed.iso,device=cdrom \
+  --network network=k8snet,mac=52:54:00:00:02:21 \
+  --os-variant ubuntu24.04 --graphics none --import --noautoconsole
+```
+
+워커는 계획대로 **8 GiB / 4 vCPU**로 잡았다 (control plane 은 4 GiB / 2 vCPU).
+
+### 결과 확인
+
+```bash
+for vm in k2-cp1 k2-w1 k2-w2; do
+  echo "=== $vm ==="
+  virsh domiflist $vm | awk 'NR>2 && NF{print "  MAC: "$NF}'
+  virsh domifaddr $vm | awk 'NR>2 && NF{print "  IP : "$4}'
+done
+```
+
+```
+=== k2-cp1 ===
+  MAC: 52:54:00:00:02:11
+  IP : 192.168.122.11/24
+=== k2-w1 ===
+  MAC: 52:54:00:00:02:21
+  IP : 192.168.122.21/24
+=== k2-w2 ===
+  MAC: 52:54:00:00:02:22
+  IP : 192.168.122.22/24
+```
+
+```bash
+ssh ubuntu@192.168.122.21   # → ubuntu@k2-w1
+ssh ubuntu@192.168.122.22   # → ubuntu@k2-w2
+```
+
+**MAC · IP · hostname 이 셋 다 계획과 일치.** VM 3대 준비 완료.
+
 ---
 
 ## 막힌 것
@@ -373,6 +434,69 @@ ssh: connect to host 192.168.122.11 port 22: Connection refused
 **배운 것** — `refused`와 `timeout`은 다른 신호다. `refused`면 경로는 살아 있는 것이니
 네트워크를 의심하기 전에 상대 서비스가 떴는지부터 본다.
 자동화 스크립트에서는 재시도 루프를 넣어야 한다.
+
+### 디스크를 안 만들고 `virt-install`
+
+```
+ERROR  Error: --disk path=/var/lib/libvirt/images/k2-w1.qcow2,format=qcow2:
+       Size must be specified for non existent volume 'k2-w1.qcow2'
+```
+
+**증상** — 워커를 만들려다 첫 시도에서 실패.
+
+**원인** — `qemu-img create`를 빠뜨렸다. `--import`는 **기존 디스크로 부팅**하는 옵션이라
+파일이 미리 있어야 한다. `k2-cp1` 때는 순서대로 했는데, 반복하면서 건너뛰었다.
+
+**해결** — `qemu-img create`를 먼저 실행.
+
+**배운 것** — 두 번째부터가 위험하다. 처음엔 문서를 따라가지만 반복할 때는 기억에 의존하게 된다.
+**VM 하나 = 디스크 + seed + virt-install 세 단계**라는 것을 묶어서 기억할 것.
+
+### MAC 복사 실수 — 두 번
+
+**1회차** — `k2-w1`을 만들면서 `mac=52:54:00:00:02:11`(k2-cp1의 것)을 그대로 뒀다.
+명령을 복사해 이름만 바꾸다 MAC을 놓쳤다. 디스크 오류로 먼저 걸려서 실행되지는 않았다.
+
+**2회차** — `k2-w2`를 만들면서 이번엔 `02:21`(k2-w1의 것)을 뒀다.
+이번엔 **libvirt가 막아줬다**:
+
+```
+ERROR  The MAC address '52:54:00:00:02:21' is in use by another virtual machine.
+       (Use --check mac_in_use=off or --check all=off to override)
+```
+
+**배운 것** — libvirt에 중복 MAC 검사가 있다. 다만 **이것만 믿으면 안 된다.**
+
+| 실수 | libvirt가 잡는가 | 결과 |
+|---|---|---|
+| 다른 VM이 쓰는 MAC | ✅ 거부 | 안전 |
+| **오타지만 아무도 안 쓰는 MAC** (예: `02:31`) | ❌ 통과 | DHCP 예약에 없어 **`.200~.250` 풀에서 임의 IP**를 받는다 |
+
+후자가 진짜 위험하다. VM은 정상으로 보이는데 주소 계획이 조용히 깨진다.
+**만든 뒤 `virsh domifaddr`로 예약한 IP가 나오는지 반드시 확인할 것.**
+
+### `Host key verification failed` — 인증 실패가 아니다
+
+```
+192.168.122.21   -> Host key verification failed.
+```
+
+**증상** — 검증 스크립트에서 워커 두 대만 실패.
+
+**틀린 가설** — cloud-init이 실패해서 키가 등록되지 않았나 의심했다.
+
+**원인** — 처음 접속하는 호스트라 `known_hosts`에 없는데,
+스크립트의 `BatchMode=yes`가 확인 프롬프트를 막아 그냥 실패한 것이다.
+
+| 메시지 | 뜻 |
+|---|---|
+| `Host key verification failed` | 상대 신원을 모름 — **내 쪽** 문제 |
+| `Permission denied (publickey)` | 상대가 내 키를 거부 — **cloud-init** 문제 |
+
+**해결** — 대화형으로 한 번 접속해 `yes`. 자동화에는 `-o StrictHostKeyChecking=accept-new`.
+(`no`와 달리 **알던 키가 바뀌면 거부**하므로 더 안전하다.)
+
+**배운 것** — 두 메시지를 구분할 것. 전자였으니 VM을 다시 만들 필요가 없었다.
 
 ---
 
@@ -417,6 +541,7 @@ VM 6대를 백킹 파일 방식으로 만들어도 된다.
 ## 다음
 
 - [x] **재부팅 후 검증** — 네트워크·NAT·포워딩 모두 유지됨
-- [ ] `virsh autostart k2-cp1` — 클러스터 노드는 자동 시작이 편하다
-- [ ] 워커 VM 2대(`k2-w1`, `k2-w2`) 추가 생성 — Stage 3에서 필요
+- [x] 워커 VM 2대(`k2-w1`, `k2-w2`) 추가 생성
+- [ ] `virsh autostart` 3대 모두 — 클러스터 노드는 자동 시작이 편하다
+- [ ] 깨끗한 상태 스냅샷 — Stage 2 시작 전 되돌아올 지점
 - [ ] [Stage 2 — 첫 클러스터](../docs/stages/stage-02-first-cluster.md)
