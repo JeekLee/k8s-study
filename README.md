@@ -43,4 +43,7 @@ labs/                        실습 결과
   stage-NN-주제.md             Stage별 수행 기록
   incidents/                   예기치 않게 겪은 문제
   drills/                      의도적 고장 → 복구 훈련
+
+scripts/                     반복 작업 스크립트
+  prep-node.sh                 노드 준비 (모듈·sysctl·containerd·kubeadm)
 ```
