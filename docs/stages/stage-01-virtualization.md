@@ -23,6 +23,7 @@ Stage 6의 고장/복구 훈련(CKA 배점 30%)이 전부 여기 기대고 있�
 - [ ] VM이 부팅되고 SSH로 들어가진다
 - [ ] VM에서 인터넷이 된다 (`apt update`가 성공)
 - [ ] 스냅샷을 찍고 되돌렸을 때 변경이 사라진다
+- [ ] 재부팅 후에도 네트워크와 NAT 규칙이 유지된다
 
 > 개념 배경과 명령 레퍼런스는 [`notes/infra/libvirt-kvm.md`](../../notes/infra/libvirt-kvm.md).
 > 이 문서는 **순서대로 실행하는 절차**다.
@@ -654,9 +655,35 @@ ssh ubuntu@192.168.122.11 'ls ~ && ls /etc/apt'
 VM이 **실행 중**이면 메모리 상태까지 저장해 느리고 용량이 크다.
 **정지 상태**면 디스크만 저장해 빠르다.
 
-> ⚠️ **백킹 파일을 쓰면 내부 스냅샷이 거부될 수 있다.**
-> 실패하면 백킹 없이 전체 복사본으로 디스크를 만들거나 `--disk-only`(외부 스냅샷)를 쓴다.
-> **실패 메시지를 그대로 `labs/`에 기록할 것.** 그 자체가 학습 자료다.
+> ✅ **백킹 파일 + 내부 스냅샷은 정상 동작한다** (2026-09-10 실측).
+> 일부 환경에서 거부되는 경우가 있다고 알려져 있으나 이 구성에서는 문제없었다.
+> 만약 실패하면 백킹 없이 전체 복사본으로 만들거나 `--disk-only`(외부 스냅샷)를 쓴다.
+
+---
+
+## 11. 재부팅 검증
+
+패키지 설치 중 커널이 갱신되어 `*** System restart required ***`가 뜬다.
+**VM을 더 만들기 전에 재부팅한다.** 그 김에 설정이 영구적인지 함께 검증된다.
+
+```bash
+sudo reboot
+```
+
+재접속 후:
+
+```bash
+virsh net-list                    # k8snet 이 active 인가 (autostart 확인)
+sudo iptables -t nat -L POSTROUTING -n -v | grep 192.168.122   # 규칙이 남아있는가
+sysctl net.ipv4.ip_forward        # = 1
+virsh list --all                  # VM 상태
+```
+
+`k8snet`이 안 뜨거나 규칙이 사라졌다면 `net-autostart` 또는
+`netfilter-persistent save`를 빠뜨린 것이다. **여기서 잡아야 Stage 4에서 안 헤맨다.**
+
+> VM은 `virsh autostart <VM>`을 걸지 않으면 재부팅 후 자동으로 뜨지 않는다.
+> 클러스터 노드는 자동 시작이 편하므로 Stage 2 이후 걸어두는 것을 권한다.
 
 ---
 

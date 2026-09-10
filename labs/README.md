@@ -27,7 +27,7 @@ labs/
 | Stage | 기록 | 상태 |
 |---|---|---|
 | 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ⚠️ 부분 — 3·4단계 Stage 4로 이월 |
-| 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ⬜ 진행 전 |
+| 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ✅ 완료 (2026-09-10) |
 | 2 | | |
 | 3 | | |
 | 4 | | |
