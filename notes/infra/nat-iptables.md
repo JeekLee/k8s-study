@@ -122,6 +122,70 @@ sudo iptables -A FORWARD -i wg0 -o virbr1 -j ACCEPT
 > 출발지가 바뀌면 쿠버네티스 노드 주소와 어긋난다.
 > → [`../network/concepts/02_node-addressing.md`](../network/concepts/02_node-addressing.md)
 
+### Stage 2 — VM이 호스트에게 말을 걸게 (INPUT)
+
+**NAT·포워딩과는 다른 문제다. 체인이 다르다.**
+
+| 트래픽 | 체인 | 무엇이 필요한가 |
+|---|---|---|
+| VM → 인터넷 (호스트를 **통과**) | `FORWARD` | `ip_forward` + MASQUERADE |
+| VM → **호스트 자신** | **`INPUT`** | INPUT 에 허용 규칙 |
+
+호스트의 `INPUT` 마지막에 `REJECT --reject-with icmp-host-prohibited`가 있으면
+VM에서 호스트의 서비스(HAProxy 등)에 접속할 수 없다.
+
+```bash
+# VM 에서
+nc -vz -w3 192.168.122.1 6443
+# failed: No route to host          ← 라우팅 문제가 아니라 REJECT 당한 것
+```
+
+```bash
+# 호스트에서 — REJECT 보다 앞에 삽입
+sudo iptables -I INPUT 2 -i virbr1 -p tcp --dport 6443 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+> **`-I`(삽입)와 `-A`(추가)를 구분할 것.**
+> `-A`는 맨 뒤에 붙으므로 REJECT 뒤가 되어 아무 효과가 없다.
+> 규칙은 **위에서부터 비교하다 처음 맞는 것에서 멈춘다.**
+
+#### 왜 VM이 호스트에 말을 거는가
+
+`--control-plane-endpoint`를 호스트의 HAProxy 주소로 잡으면,
+kubeadm이 만드는 **모든 kubeconfig의 `server:` 가 그 주소**가 된다.
+
+```
+kubelet.conf · scheduler.conf · controller-manager.conf · admin.conf
+  → server: https://192.168.122.1:6443
+```
+
+그래서 `k2-cp1`의 kubelet이 **같은 VM 안의 apiserver에 접속할 때도
+호스트를 한 바퀴 돌아간다.**
+
+```
+[k2-cp1]  kubelet ──► [호스트] HAProxy :6443 ──► [k2-cp1] apiserver :6443
+```
+
+이상해 보이지만 단일 엔드포인트의 목적이 그것이다 —
+CP를 3대로 늘려도 각 노드는 설정을 바꾸지 않는다.
+
+VM → 호스트로 상시 오가는 것: kubelet, kube-proxy, scheduler,
+controller-manager, kubectl, 그리고 워커의 `kubeadm join`.
+반대 방향(호스트 → VM)은 프록시와 헬스체크뿐이다.
+
+> 그래서 **HAProxy가 죽으면 apiserver가 멀쩡해도 클러스터가 마비된다.**
+> apiserver ↔ etcd 는 같은 VM 안에서 `127.0.0.1` 로 직접 통신하므로 예외다.
+
+#### 오해하기 쉬운 신호
+
+| 메시지 | 뜻 |
+|---|---|
+| `No route to host` | `icmp-host-prohibited` 로 **거부**당함 (방화벽 REJECT) |
+| `Network is unreachable` | 진짜 라우팅이 없음 |
+| `Connection refused` | 닿았지만 그 포트에 리스너가 없음 |
+| 타임아웃 | DROP 당했거나 경로가 없음 |
+
 ### Stage 6 — 맥에서 서비스 열어보기
 
 VM은 `192.168.122.x`라 맥에서 직접 안 닿는다. 두 가지 방법이 있다.

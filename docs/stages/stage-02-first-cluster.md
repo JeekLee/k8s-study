@@ -113,12 +113,113 @@ listen stats
 > `mode http`로 두면 HAProxy가 TLS를 풀어버려 **RBAC이 통째로 무너진다.**
 
 ```bash
-sudo haproxy -c -f /etc/haproxy/haproxy.cfg     # 문법 검사 — 재시작 전에 반드시
-sudo systemctl enable --now haproxy
-sudo systemctl status haproxy
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg     # 문법 검사 — 출력이 없으면 정상
+sudo systemctl restart haproxy                  # ← enable --now 가 아니라 restart
+sudo systemctl enable haproxy
+systemctl status haproxy --no-pager
 ```
 
-### 1-3. 검증 — 지금은 백엔드가 DOWN인 게 정상
+> ⚠️ **`apt install haproxy`는 설치 직후 서비스를 자동으로 시작한다.**
+> 그때는 설정 파일에 우리 블록이 없으므로 **아무것도 LISTEN하지 않는다.**
+> 그런데 `systemctl status`는 `Active: running`, `Status: "Ready."`로 나와서
+> 잘 된 것처럼 보인다.
+>
+> **설정을 고친 뒤에는 반드시 `restart`(또는 `reload`)한다.**
+> 클러스터가 돌기 시작한 뒤에는 기존 연결을 유지하는 `reload`를 쓰는 편이 낫다.
+
+### 1-3. VM에서 닿을 수 있게 — 방화벽
+
+**여기가 빠지기 쉽다.** 포트는 열렸는데 VM에서 접속이 안 되는 상태가 된다.
+
+```bash
+# VM 에서 (호스트를 거쳐)
+nc -vz -w3 192.168.122.1 6443
+# nc: connect to 192.168.122.1 port 6443 (tcp) failed: No route to host
+```
+
+호스트의 `INPUT` 체인 마지막이 모든 것을 거부하기 때문이다.
+
+```bash
+sudo iptables -L INPUT -n -v --line-numbers
+```
+
+```
+num   pkts  target       prot  in   source      destination
+1     ..... LIBVIRT_INP  all   *                              ← DHCP/DNS 만 허용
+2     ..... ACCEPT       all   *    state RELATED,ESTABLISHED
+3     ..... ACCEPT       icmp  *
+4     ..... ACCEPT       all   lo
+5     ..... ACCEPT       tcp   *    state NEW tcp dpt:22
+6        44 REJECT       all   *    reject-with icmp-host-prohibited   ← 여기서 떨어진다
+```
+
+> **`No route to host`는 라우팅 문제가 아니다.**
+> `icmp-host-prohibited`로 거부당했을 때 클라이언트에 그렇게 보인다.
+> 진짜 라우팅 문제라면 `Network is unreachable`이 난다.
+
+#### 왜 인터넷은 되는데 이건 안 되나 — 체인이 다르다
+
+| 트래픽 | 체인 | Stage 1에서 |
+|---|---|---|
+| VM → 인터넷 (호스트를 **통과**) | `FORWARD` | ✅ 열었다 |
+| VM → **호스트 자신** (`.1`) | **`INPUT`** | ❌ 손대지 않았다 |
+
+Stage 1의 `ip_forward`와 MASQUERADE는 **지나가는 트래픽**을 다룬 것이고,
+호스트에 직접 말을 거는 것은 별개다.
+dnsmasq(53번)가 되는 것은 `LIBVIRT_INP`가 그것만 열어주기 때문이다.
+
+#### 왜 VM이 호스트에 말을 거는가
+
+`--control-plane-endpoint`를 HAProxy 주소로 잡으면,
+kubeadm이 만드는 **모든 kubeconfig의 `server:` 가 그 주소**가 된다.
+
+```
+kubelet.conf · scheduler.conf · controller-manager.conf · admin.conf
+  → server: https://192.168.122.1:6443
+```
+
+그래서 `k2-cp1`의 kubelet이 **같은 VM 안의 apiserver에 접속할 때도
+호스트를 한 바퀴 돌아간다.**
+
+```
+[k2-cp1]  kubelet ──► [호스트] HAProxy :6443 ──► [k2-cp1] apiserver :6443
+```
+
+이상해 보이지만 그것이 단일 엔드포인트의 목적이다 —
+Stage 5에서 CP를 3대로 늘려도 **각 노드는 설정을 하나도 바꾸지 않는다.**
+
+VM → 호스트로 상시 오가는 것: kubelet, kube-proxy, scheduler,
+controller-manager, kubectl, 그리고 워커의 `kubeadm join`. **거의 전부다.**
+(apiserver ↔ etcd 는 같은 VM 안에서 `127.0.0.1` 로 통신하므로 예외다.)
+
+#### 규칙 추가
+
+```bash
+sudo iptables -I INPUT 2 -i virbr1 -p tcp --dport 6443 -j ACCEPT
+sudo netfilter-persistent save
+
+sudo iptables -L INPUT -n --line-numbers | head -8
+```
+
+| 조각 | 뜻 |
+|---|---|
+| `-I INPUT 2` | **2번 자리에 삽입.** `-A`(맨 뒤)로 하면 REJECT 뒤라 소용없다 |
+| `-i virbr1` | VM 네트워크에서 들어오는 것만 |
+| `--dport 6443` | apiserver 엔드포인트만. stats(8404)는 호스트에서 보면 되므로 열지 않는다 |
+
+**순서가 전부다.** REJECT보다 앞에 있어야 한다.
+
+확인:
+
+```bash
+ssh ubuntu@192.168.122.11 'nc -vz -w3 192.168.122.1 6443'
+# Connection to 192.168.122.1 6443 port [tcp/*] succeeded!
+```
+
+> 이 규칙이 없으면 `kubeadm init`은 성공하는데
+> **kubelet이 엔드포인트에 못 붙어 노드가 이상하게 동작한다.** 원인 찾기가 어렵다.
+
+### 1-4. 검증 — 지금은 백엔드가 DOWN인 게 정상
 
 ```bash
 sudo ss -lntp | grep 6443
@@ -127,6 +228,23 @@ sudo ss -lntp | grep 6443
 
 아직 apiserver가 없으므로 백엔드는 DOWN이다. **HAProxy는 그래도 뜬다.**
 apiserver가 올라오면 헬스체크가 자동으로 감지해 UP으로 바꾼다.
+
+로그에 이런 것이 보이는데 **정상이다.**
+
+```
+[WARNING] Server k8s-cp/k2-cp1 is DOWN, reason: Layer4 connection problem
+[ALERT]   backend 'k8s-cp' has no server available!
+```
+
+`[ALERT]`라 놀라기 쉽지만 "가봤더니 아무도 없더라"는 보고일 뿐이다.
+`Layer4 connection problem`은 TCP 연결 자체가 안 됐다는 뜻으로,
+포트에 아무도 없을 때 나온다.
+
+```bash
+curl -s 'http://192.168.122.1:8404/stats;csv' | awk -F, '/^k8s-cp,/{printf "  %-10s %s\n", $2, $18}'
+#   k2-cp1     DOWN
+#   BACKEND    DOWN
+```
 
 브라우저로 보고 싶다면 맥에서:
 
