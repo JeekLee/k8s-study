@@ -6,6 +6,7 @@
 |---|---|
 | [`etcd.md`](etcd.md) | 클러스터의 유일한 데이터베이스. 쿼럼, 백업/복구, 크기 제한 |
 | [`container-runtime.md`](container-runtime.md) | containerd와 CRI. 계층 구조, cgroup 드라이버, `crictl` |
+| [`cni.md`](cni.md) | CNI 규약과 Calico. 파드 네트워킹, VXLAN이 필수인 이유, NetworkPolicy |
 
 ## 앞으로 채울 것
 

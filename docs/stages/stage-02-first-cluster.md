@@ -538,11 +538,20 @@ TCP·TLS를 지나 apiserver에 닿았다는 뜻**이다. `curl: (7)`이면 실�
 
 ## 7. CNI — Calico
 
-### 7-1. 왜 Calico인가
+### 7-1. 왜 CNI가 필요한가
+
+쿠버네티스는 **네트워크 규칙만 정하고 구현은 CNI 플러그인에게 맡긴다.**
+그래서 지금 노드가 `NotReady`이고 CoreDNS가 `Pending`이다 — 고장이 아니라 순서다.
+
+```bash
+kubectl describe node k2-cp1 | grep -A3 Conditions
+# NetworkReady=false ... cni plugin not initialized
+```
 
 **Flannel은 NetworkPolicy를 지원하지 않는다.**
-CKA의 Services & Networking(배점 20%)에 NetworkPolicy가 포함되므로
-그 영역이 통째로 빠진다.
+CKA의 Services & Networking(배점 20%)에 포함되므로 그 영역이 통째로 빠진다.
+
+개념 정리는 [`notes/kubernetes/cni.md`](../../notes/kubernetes/cni.md).
 
 ### 7-2. 오퍼레이터 설치
 
