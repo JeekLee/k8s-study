@@ -33,7 +33,7 @@ CKA(Certified Kubernetes Administrator) 대비용 kubeadm 클러스터를 **직�
 전체 계획은 [docs/02-roadmap.md](docs/02-roadmap.md).
 
 - [x] **Stage 0** — 기반 개념과 진단 도구
-- [ ] **Stage 1** — 가상화 기반 (libvirt, 스냅샷) ← **다음**
+- [ ] **[Stage 1](docs/stages/stage-01-virtualization.md)** — 가상화 기반 (libvirt, 스냅샷) ← **다음**
 - [ ] **Stage 2** — 첫 클러스터 (단일 노드)
 - [ ] **Stage 3** — 다중 노드 (호스트 내부)
 - [ ] **Stage 4** — 크로스 호스트 라우팅 (WireGuard)
@@ -55,7 +55,8 @@ CKA(Certified Kubernetes Administrator) 대비용 kubeadm 클러스터를 **직�
 docs/
   00-plan.md              사전 점검 결과와 설계 결정
   01-network-design.md    네트워크 설계
-  02-roadmap.md           학습 로드맵 Stage 0~7
+  02-roadmap.md           학습 로드맵 개요
+  stages/                 단계별 실행 절차 (stage-00 ~ 07)
 notes/
   network/                VCN·주소 문제·진단 명령·WireGuard
   kubernetes/             컴포넌트 (etcd)

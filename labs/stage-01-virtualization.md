@@ -7,7 +7,7 @@
 | 결과 | ⬜ 진행 전 |
 | 대상 | k8s-2 (32 vCPU / 251 GiB) |
 
-> 계획: [`docs/02-roadmap.md`](../docs/02-roadmap.md#stage-1--가상화-기반)
+> 절차: [`docs/stages/stage-01-virtualization.md`](../docs/stages/stage-01-virtualization.md)
 > 참고: [`notes/infra/libvirt-kvm.md`](../notes/infra/libvirt-kvm.md)
 
 ## 완료 기준
