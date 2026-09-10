@@ -21,8 +21,8 @@
 |---|---|---|---|
 | [0](stages/stage-00-baseline.md) | 기반 개념과 진단 도구 | — | ✅ 완료 |
 | [1](stages/stage-01-virtualization.md) | 가상화 기반 (libvirt, 스냅샷) | 반나절 | ✅ 완료 |
-| [2](stages/stage-02-first-cluster.md) | 첫 클러스터 (단일 노드) + HAProxy | 하루 | ← **다음** |
-| [3](stages/stage-03-multi-node.md) | 다중 노드 (호스트 내부) | 하루 | |
+| [2](stages/stage-02-first-cluster.md) | 첫 클러스터 (단일 노드) + HAProxy | 하루 | ✅ 완료 |
+| [3](stages/stage-03-multi-node.md) | 다중 노드 (호스트 내부) | 하루 | ← **다음** |
 | [4](stages/stage-04-cross-host.md) | 크로스 호스트 라우팅 (WireGuard) | 하루 | |
 | [5](stages/stage-05-ha.md) | HA control plane — 6노드 완성 | 하루 | |
 | [6](stages/stage-06-cka-domains.md) | CKA 영역별 실습 | 3–5주 | |

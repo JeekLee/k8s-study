@@ -28,7 +28,7 @@ labs/
 |---|---|---|
 | 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ⚠️ 부분 — 3·4단계 Stage 4로 이월 |
 | 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ✅ 완료 (2026-09-10) |
-| 2 | [`stage-02-first-cluster.md`](stage-02-first-cluster.md) | 🔄 진행 중 (1절 완료) |
+| 2 | [`stage-02-first-cluster.md`](stage-02-first-cluster.md) | ✅ 완료 (2026-09-10) |
 | 3 | | |
 | 4 | | |
 | 5 | | |

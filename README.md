@@ -8,8 +8,8 @@ CKA 대비용 kubeadm 클러스터를 직접 설계·구축하며 학습하는 �
 |---|---|---|
 | 0 | [기반 개념과 진단 도구](docs/stages/stage-00-baseline.md) | ✅ 완료 |
 | 1 | [가상화 기반](docs/stages/stage-01-virtualization.md) — libvirt, VM 3대, 스냅샷 | ✅ 완료 |
-| 2 | [첫 클러스터](docs/stages/stage-02-first-cluster.md) — 단일 노드 + HAProxy | ⬜ **진행 예정** |
-| 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | ⬜ |
+| 2 | [첫 클러스터](docs/stages/stage-02-first-cluster.md) — 단일 노드 + HAProxy | ✅ 완료 |
+| 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | ⬜ **진행 예정** |
 | 4 | [크로스 호스트 라우팅](docs/stages/stage-04-cross-host.md) — WireGuard | ⬜ |
 | 5 | [HA control plane](docs/stages/stage-05-ha.md) — 6노드 완성 | ⬜ |
 | 6 | [CKA 영역별 실습](docs/stages/stage-06-cka-domains.md) | ⬜ |

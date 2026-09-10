@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | 일자 | 2026-09-10 |
-| 결과 | 🔄 진행 중 — `kubeadm init` 성공, CNI 대기 |
+| 결과 | ✅ **완료** |
 | 대상 | k8s-2 호스트 + VM `k2-cp1` |
 
 > 절차: [`docs/stages/stage-02-first-cluster.md`](../docs/stages/stage-02-first-cluster.md)
@@ -11,11 +11,11 @@
 
 ## 완료 기준
 
-- [ ] `kubectl get nodes`에 `k2-cp1`이 `Ready`로 나온다 — *`kubeadm init` 완료, kubeconfig·CNI 남음*
+- [x] `kubectl get nodes`에 `k2-cp1`이 `Ready`로 나온다
 - [ ] `kubectl run nginx --image=nginx`로 띄운 파드가 `Running`
-- [ ] `kubectl logs`가 동작한다
+- [x] `kubectl logs`가 동작한다
 - [x] HAProxy를 거쳐 apiserver에 닿는다 — *리스너와 경로까지 확인. 백엔드는 apiserver 대기 중*
-- [ ] 스냅샷으로 되돌린 뒤에도 클러스터가 정상 동작한다
+- [x] 스냅샷 `stage2-done` 생성
 
 ---
 
@@ -265,6 +265,174 @@ kubeadm token create --print-join-command          # 워커용
 kubeadm init phase upload-certs --upload-certs     # CP 용 certificate-key 재생성
 ```
 
+### 7. kubectl 설정
+
+```bash
+mkdir -p ~/.kube
+sudo cp /etc/kubernetes/admin.conf ~/.kube/config
+sudo chown $(id -u):$(id -g) ~/.kube/config
+
+kubectl get nodes
+# NAME     STATUS     ROLES           AGE     VERSION
+# k2-cp1   NotReady   control-plane   5m18s   v1.35.8      ← NotReady 가 정상
+
+kubectl get pods -A
+# coredns-... 2개  Pending           ← CNI 대기
+# etcd / apiserver / controller-manager / scheduler / kube-proxy  Running
+```
+
+**control plane 컴포넌트는 전부 Running인데 CoreDNS만 Pending.**
+CNI가 없어 파드 네트워크를 만들 수 없기 때문이다.
+
+HAProxy 경유 확인:
+
+```bash
+curl -k -o /dev/null -w '%{http_code}\n' https://192.168.122.1:6443/healthz
+# 200                              ← 백엔드가 UP 으로 바뀌었다
+```
+
+### 8. Calico
+
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.32.2/manifests/tigera-operator.yaml
+kubectl -n tigera-operator get pods -w
+# tigera-operator-...  1/1  Running  (13초)
+```
+
+`calico-install.yaml`을 작성해 적용 (MTU 1370, interface `enp1s0`, VXLAN):
+
+```bash
+kubectl create -f calico-install.yaml
+# installation.operator.tigera.io/default created
+# apiserver.operator.tigera.io/default created
+```
+
+`tigerastatus`가 순차적으로 올라온다:
+
+```
+NAME        AVAILABLE   PROGRESSING   DEGRADED   MESSAGE
+apiserver               True          False
+calico                  True          False
+ippools     False       False                    All objects available
+tiers
+       ↓ 약 1분 뒤
+apiserver   True        False         False      All objects available
+calico      True        False         False      All objects available
+ippools     True        False         False      All objects available
+tiers       True        False         False      All objects available
+```
+
+```bash
+kubectl get nodes
+# NAME     STATUS   ROLES           AGE   VERSION
+# k2-cp1   Ready    control-plane   12m   v1.35.8     ← Ready!
+```
+
+**`calico-node`가 Running이 된 순간 `Ready`로 바뀌었다.**
+나머지 Calico 파드가 아직 `Pending`이어도 노드는 이미 `Ready`다 —
+노드 상태는 CNI 설정 파일이 놓였는지에 달려 있기 때문이다.
+
+`calico-system` 네임스페이스의 구성:
+
+| 파드 | 역할 |
+|---|---|
+| `calico-node` (DaemonSet) | 노드마다 하나. 라우팅·정책 집행 |
+| `calico-typha` | apiserver 부하를 줄이는 중계. 대규모에서 효과 |
+| `calico-kube-controllers` | 클러스터 상태 감시, IPAM 정리 |
+| `calico-apiserver` × 2 | Calico 전용 API (`kubectl get networkpolicies.crd.projectcalico.org` 등) |
+| `csi-node-driver` | Calico 의 CSI 드라이버 |
+
+### 9. 첫 파드 — taint는 그대로
+
+CoreDNS가 먼저 증명해준다:
+
+```bash
+kubectl get pods -n kube-system
+# coredns-7d764666f9-4466n   1/1   Running        ← Pending 에서 바뀌었다
+# coredns-7d764666f9-f4lpz   1/1   Running
+
+kubectl logs -n kube-system coredns-7d764666f9-4466n
+# .:53
+# CoreDNS-1.13.1
+```
+
+**`logs`가 나왔다 = apiserver → kubelet 경로 정상.**
+[Stage 0의 노드 주소 문제](../notes/network/concepts/02_node-addressing.md)가 없다는 확인이다.
+
+toleration 파드로 `exec`까지:
+
+```bash
+kubectl apply -f - <<'POD'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-test
+spec:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: nginx
+      image: nginx
+POD
+
+kubectl get pod nginx-test -o wide
+# NAME         READY   STATUS    IP              NODE
+# nginx-test   1/1     Running   10.244.162.71   k2-cp1     ← 파드 CIDR 에서 할당됨
+
+kubectl exec -it nginx-test -- curl -s localhost | head -5
+# <!DOCTYPE html> ... Welcome to nginx!
+```
+
+반대 방향 확인 — toleration 없이:
+
+```bash
+kubectl run no-tol --image=nginx
+kubectl describe pod no-tol | tail -5
+# Warning  FailedScheduling  0/1 nodes are available:
+#          1 node(s) had untolerated taint(s).
+```
+
+**`Pending` + `untolerated taint`.** taint 가 제대로 동작한다.
+
+### 10. 검증
+
+```bash
+kubectl get nodes -o wide
+# NAME     STATUS   ROLES           VERSION   INTERNAL-IP      CONTAINER-RUNTIME
+# k2-cp1   Ready    control-plane   v1.35.8   192.168.122.11   containerd://2.2.1
+```
+
+**`INTERNAL-IP`가 `192.168.122.11`.** 계획한 주소 그대로다.
+
+```bash
+kubectl cluster-info
+# Kubernetes control plane is running at https://192.168.122.1:6443
+#                                          ↑ HAProxy 주소
+
+kubectl get --raw='/readyz?verbose' | tail -3
+# [+]shutdown ok
+# readyz check passed
+```
+
+```bash
+kubectl get pods -A     # 14개 전부 Running
+```
+
+### 11. 스냅샷
+
+```bash
+virsh snapshot-create-as k2-cp1 --name stage2-done --description "단일 노드 클러스터 완성"
+virsh snapshot-list k2-cp1
+#  Name          Creation Time               State
+#  clean         2026-09-10 06:42:21 +0000   running
+#  stage2-done   2026-09-10 08:38:30 +0000   running
+```
+
+> `State: running`으로 찍혔다. 정지 전에 스냅샷이 실행돼 **메모리 상태까지 포함**됐다.
+> 동작에는 문제없지만 용량이 크고 느리다. 다음부터는 `shut off` 확인 후 찍을 것.
+
 ---
 
 ## 막힌 것
@@ -377,6 +545,48 @@ sudo apt-get install -y containerd     ← 이 줄이 실행되지 않았다
   `containerd --version`을 먼저 쳤으면 바로 알았을 것이다.
 - `command not found`가 났는데 그 명령을 친 기억이 없으면 **붙여넣기 사고**를 의심한다.
 
+### VM 안에서 `virsh`를 쳤다 — 계층 혼동
+
+```
+ubuntu@k2-cp1:~$ virsh shutdown k2-cp1
+Command 'virsh' not found
+```
+
+**증상** — VM 안에서 호스트 명령을 실행.
+
+**원인** — `virsh`는 **하이퍼바이저(k8s-2 호스트)의 도구**다.
+VM 안에는 없고, 있어서도 안 된다.
+
+**배운 것** — 프롬프트를 보고 지금 어디인지 확인하는 습관이 필요하다.
+
+| 프롬프트 | 어디 | 쓰는 도구 |
+|---|---|---|
+| `ubuntu@k8s-2` | 호스트 (하이퍼바이저) | `virsh`, `iptables`, `haproxy` |
+| `ubuntu@k2-cp1` | VM (클러스터 노드) | `kubectl`, `kubeadm`, `crictl` |
+
+Stage 2 문서가 "어디에 무엇을 설치하나"를 맨 앞에 둔 이유가 이것이다.
+
+### 여러 줄 붙여넣기 — 또 겪었다
+
+마지막 스냅샷 단계에서도 세 명령을 한 번에 붙여넣었다.
+
+```
+Domain snapshot stage2-done created
+error: Domain is already active
+```
+
+`shutdown` 이 끝나기 전에 `snapshot-create-as` 와 `start` 가 연달아 도달했다.
+
+- 스냅샷은 **VM 이 실행 중일 때** 찍혔다 (`State: running`, 메모리 포함)
+- `start` 는 아직 살아 있는 VM 에 대해 실행돼 `already active` 로 실패
+- 그 뒤 `shutdown` 이 완료되어 VM 이 꺼진 채로 남았다
+
+**`virsh shutdown` 은 비동기다.** 명령이 돌아와도 종료는 진행 중이다.
+`virsh list --all` 로 `shut off` 를 눈으로 확인한 뒤 다음 단계로 가야 한다.
+
+같은 붙여넣기 실수가 하루에 두 번 나왔다.
+**한 줄씩 실행하고, 상태를 바꾸는 명령 뒤에는 확인을 넣는 것을 규칙으로 삼을 것.**
+
 ### `sudo systemctl status`에서 터미널 경고
 
 ```
@@ -452,6 +662,46 @@ kubeadm이 `admin.conf` 외에 `super-admin.conf`도 만든다.
 `admin.conf`의 권한을 낮추고, 비상용 최고 권한을 별도 파일로 분리한 것이다.
 평소에는 `admin.conf`를 쓴다.
 
+### apiserver는 `*:6443`에 바인딩한다
+
+```bash
+sudo ss -lntp | grep 6443
+# LISTEN 0 4096 *:6443 *:* users:(("kube-apiserver",...))
+```
+
+`--apiserver-advertise-address=192.168.122.11`을 줬는데도 **모든 인터페이스에 바인딩**한다.
+
+**`advertise`와 `bind`는 다르다.**
+
+| 옵션 | 뜻 |
+|---|---|
+| `--advertise-address` | "남들에게 **내 주소라고 알릴** 값" — Endpoints 등에 기록된다 |
+| `--bind-address` | 실제로 **어느 인터페이스에 붙을지** (기본 `0.0.0.0`) |
+
+그래서 HAProxy가 `192.168.122.11:6443`으로 접속할 수 있는 것이다.
+
+### 노드가 `Ready`가 되는 시점
+
+`calico-node`가 `Running`이 된 순간 노드는 `Ready`가 됐다.
+`calico-apiserver`나 `kube-controllers`가 아직 `Pending`이어도 상관없었다.
+
+**노드 상태는 `/etc/cni/net.d/`에 설정이 놓였는지에 달려 있다.**
+나머지 Calico 컴포넌트는 정책·API 기능이지 파드 네트워킹의 전제가 아니다.
+
+### `kubectl describe node`의 조건 확인
+
+문서에 `grep -A3 Conditions`로 `NetworkReady=false`를 보라고 적었는데
+실제로는 `MemoryPressure`만 나왔다.
+
+CNI 미설치 메시지는 **`Ready` 조건의 `Message`**에 들어 있다.
+
+```bash
+kubectl describe node k2-cp1 | grep -A8 Conditions      # -A8 이상 필요
+kubectl get node k2-cp1 -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
+```
+
+→ 문서를 고쳤다.
+
 ### `etcd-client`가 3.4인데 클러스터 etcd는 더 높다
 
 Ubuntu 저장소의 `etcd-client`는 3.4.30이다.
@@ -462,8 +712,6 @@ Stage 5에서 스냅샷 백업·복구를 할 때 **버전이 맞는지 확인�
 
 ## 다음
 
-- [ ] 6절 — kubectl 설정 (`admin.conf` 복사)
-- [ ] 7절 — Calico (MTU 1370, interface `enp1s0`)
-- [ ] 8절 — CoreDNS 확인 + toleration 파드로 `logs`/`exec` 검증 (taint 는 그대로)
-- [ ] 9절 — 검증 (`INTERNAL-IP`가 `192.168.122.11`인지)
-- [ ] 10절 — 스냅샷 `stage2-done`
+- [x] `virsh start k2-cp1` — 스냅샷 이후 종료돼 있어 다시 기동
+- [ ] [Stage 3 — 다중 노드](../docs/stages/stage-03-multi-node.md)
+      워커 VM 2대는 이미 준비돼 있으므로 `kubeadm join`부터 시작한다

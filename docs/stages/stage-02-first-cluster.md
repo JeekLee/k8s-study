@@ -544,9 +544,13 @@ TCP·TLS를 지나 apiserver에 닿았다는 뜻**이다. `curl: (7)`이면 실�
 그래서 지금 노드가 `NotReady`이고 CoreDNS가 `Pending`이다 — 고장이 아니라 순서다.
 
 ```bash
-kubectl describe node k2-cp1 | grep -A3 Conditions
-# NetworkReady=false ... cni plugin not initialized
+kubectl get node k2-cp1 -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
+# container runtime network not ready: NetworkReady=false ... cni plugin not initialized
 ```
+
+> `kubectl describe node | grep -A3 Conditions`로는 안 보인다.
+> CNI 메시지는 **`Ready` 조건의 `Message`**에 있어서 `-A8` 이상이 필요하다.
+> 위처럼 `jsonpath`로 직접 뽑는 편이 확실하다.
 
 **Flannel은 NetworkPolicy를 지원하지 않는다.**
 CKA의 Services & Networking(배점 20%)에 포함되므로 그 영역이 통째로 빠진다.
@@ -735,12 +739,21 @@ sudo ss -lntp | grep 6443
 Stage 3에서 뭔가 잘못돼도 여기로 돌아올 수 있다.
 
 ```bash
-# 호스트에서 — VM 을 정상 종료한 뒤가 안전하다
+# 호스트에서 — 한 줄씩 실행한다
 virsh shutdown k2-cp1
-virsh list --all                            # shut off 확인
+
+virsh list --all          # ← State 가 "shut off" 가 될 때까지 기다린다 (10~20초)
+
 virsh snapshot-create-as k2-cp1 --name stage2-done --description "단일 노드 클러스터 완성"
+virsh snapshot-list k2-cp1
+
 virsh start k2-cp1
 ```
+
+> ⚠️ **`virsh shutdown`은 비동기다.** 명령이 돌아와도 종료는 진행 중이다.
+> 세 명령을 한 번에 붙여넣으면 VM이 **아직 실행 중일 때 스냅샷이 찍히고**
+> (`State: running`, 메모리 포함) `start`는 `Domain is already active`로 실패한다.
+> 동작에는 문제없지만 스냅샷이 커지고 느려진다.
 
 VM이 정지 상태면 디스크만 저장해 빠르고 용량도 작다.
 
