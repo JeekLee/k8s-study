@@ -316,6 +316,19 @@ sysctl net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward
 
 ## 3. 컨테이너 런타임 — containerd
 
+**쿠버네티스는 컨테이너를 직접 실행하지 않는다.** kubelet은 지시만 하고
+실제 실행은 런타임에게 맡긴다.
+
+```
+kubelet ──CRI──► containerd ──OCI──► runc ──► 커널(namespace + cgroup)
+```
+
+Docker를 쓰지 않는 이유는 **Docker가 CRI를 말할 줄 몰라** `dockershim` 어댑터가
+필요했고 그것이 v1.24에서 제거됐기 때문이다. Docker 내부에도 이미 containerd가 있다.
+
+자세한 내용은 [`notes/kubernetes/container-runtime.md`](../../notes/kubernetes/container-runtime.md).
+
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y containerd

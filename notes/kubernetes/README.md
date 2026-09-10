@@ -5,6 +5,7 @@
 | 문서 | 내용 |
 |---|---|
 | [`etcd.md`](etcd.md) | 클러스터의 유일한 데이터베이스. 쿼럼, 백업/복구, 크기 제한 |
+| [`container-runtime.md`](container-runtime.md) | containerd와 CRI. 계층 구조, cgroup 드라이버, `crictl` |
 
 ## 앞으로 채울 것
 
