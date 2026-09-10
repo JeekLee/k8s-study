@@ -17,7 +17,7 @@
 ## 완료 기준
 
 - [ ] `kubectl get nodes`에 `k2-cp1`이 `Ready`로 나온다
-- [ ] `kubectl run nginx --image=nginx`로 띄운 파드가 `Running`
+- [ ] toleration 을 붙인 파드가 `Running` (taint 는 그대로 둔 채)
 - [ ] `kubectl logs`가 동작한다
 - [ ] HAProxy를 거쳐 apiserver에 닿는다
 - [ ] 스냅샷으로 되돌린 뒤에도 클러스터가 정상 동작한다
@@ -614,7 +614,7 @@ kubectl get nodes
 
 ---
 
-## 8. taint와 첫 파드
+## 8. 첫 파드 — taint는 건드리지 않는다
 
 ```bash
 kubectl describe node k2-cp1 | grep -A2 Taints
@@ -624,37 +624,92 @@ kubectl describe node k2-cp1 | grep -A2 Taints
 이 표시가 있으면 일반 파드가 배치되지 않는다.
 control plane이 워크로드 부하로 느려지면 클러스터 전체가 흔들리기 때문이다.
 
-지금은 노드가 하나뿐이므로 잠시 지운다.
+> ⚠️ **taint를 지웠다가 되돌리는 방식은 쓰지 않는다.**
+> 되돌리기를 잊으면 이후 스케줄링 실습이 전부 어긋난다.
+> **toleration을 붙인 파드를 띄우면 같은 검증을 하면서 상태를 건드리지 않는다.**
+> 덤으로 toleration 문법이 손에 익는데, 그 자체가
+> CKA Workloads & Scheduling(배점 15%) 내용이다.
+
+### 8-1. CoreDNS가 이미 절반을 증명한다
+
+kubeadm이 만드는 CoreDNS는 **control plane taint를 이미 톨러레이트한다.**
+그래서 Calico를 올리면 저절로 `Running`이 되는데,
+**그 사실 자체가 containerd·CNI·kubelet이 모두 동작한다는 증거다.**
 
 ```bash
-kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+kubectl get pods -n kube-system
+# coredns-... 2개가 Running 이어야 한다
+
+kubectl logs -n kube-system <coredns-파드명>
 ```
 
-> 명령 끝의 `-`가 **제거**를 뜻한다. 붙이려면 `...control-plane:NoSchedule`.
->
-> ⚠️ 옛 문서의 `node-role.kubernetes.io/master-`는 **v1.24에서 제거되어 동작하지 않는다.**
+`logs`가 나오면 **apiserver → kubelet 경로까지 정상**이라는 뜻이다.
+[Stage 0의 노드 주소 문제](../../notes/network/concepts/02_node-addressing.md)가 없다는 확인이기도 하다.
 
 ```bash
-kubectl run nginx --image=nginx
-kubectl get pods -o wide           # Running 확인
-kubectl logs nginx
-kubectl exec -it nginx -- ls /
+# 톨러레이션 확인 — 왜 CoreDNS 는 CP 에 뜨는가
+kubectl get deploy coredns -n kube-system -o jsonpath='{.spec.template.spec.tolerations}' | jq
 ```
 
-`logs`와 `exec`가 되면 **apiserver → kubelet 경로가 정상**이라는 뜻이다.
-Stage 0에서 다룬 노드 주소 문제가 없다는 확인이기도 하다.
+### 8-2. `exec` 검증용 파드
 
-### 실습을 마친 뒤 taint를 다시 건다
+CoreDNS 이미지에는 셸이 없어 `exec`가 되지 않는다. nginx로 확인한다.
 
 ```bash
-kubectl delete pod nginx
-kubectl taint nodes k2-cp1 node-role.kubernetes.io/control-plane:NoSchedule
+cat <<'POD' | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-test
+spec:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: nginx
+      image: nginx
+POD
 ```
 
-Stage 3에서 워커가 생기면 control plane은 관리에만 전념해야 하고,
-남겨두면 **Workloads & Scheduling(배점 15%) 실습 재료**가 된다.
+| 필드 | 뜻 |
+|---|---|
+| `key` | 어떤 taint 를 견딜 것인가 |
+| `operator: Exists` | **값은 상관없이** 그 키가 있으면 견딘다 (`Equal`이면 `value`도 맞아야 함) |
+| `effect: NoSchedule` | 그 효과의 taint 를 견딘다 |
 
----
+```bash
+kubectl get pod nginx-test -o wide      # Running, NODE 가 k2-cp1
+kubectl logs nginx-test
+kubectl exec -it nginx-test -- ls /
+kubectl exec -it nginx-test -- curl -s localhost | head -5
+```
+
+`logs`·`exec`가 모두 되면 **노드 하나의 스택이 끝까지 동작한다.**
+
+```bash
+kubectl delete pod nginx-test
+```
+
+### 8-3. toleration 없이 띄워보기 — taint 확인
+
+taint가 실제로 동작하는지 반대로도 확인해둔다.
+
+```bash
+kubectl run no-tol --image=nginx
+kubectl get pod no-tol
+# NAME     READY   STATUS    ...
+# no-tol   0/1     Pending
+
+kubectl describe pod no-tol | tail -5
+# Warning  FailedScheduling  ... 1 node(s) had untolerated taint
+#          {node-role.kubernetes.io/control-plane: }
+
+kubectl delete pod no-tol
+```
+
+**`Pending` + `untolerated taint`가 나오면 정상이다.**
+Stage 3에서 워커가 생기면 이 파드는 워커로 배치된다.
 
 ## 9. 검증
 

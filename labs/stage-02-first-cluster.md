@@ -464,6 +464,6 @@ Stage 5에서 스냅샷 백업·복구를 할 때 **버전이 맞는지 확인�
 
 - [ ] 6절 — kubectl 설정 (`admin.conf` 복사)
 - [ ] 7절 — Calico (MTU 1370, interface `enp1s0`)
-- [ ] 8절 — taint 제거 후 첫 파드, 다시 taint
+- [ ] 8절 — CoreDNS 확인 + toleration 파드로 `logs`/`exec` 검증 (taint 는 그대로)
 - [ ] 9절 — 검증 (`INTERNAL-IP`가 `192.168.122.11`인지)
 - [ ] 10절 — 스냅샷 `stage2-done`
