@@ -195,6 +195,11 @@ kubectl label node k2-w2 node-role.kubernetes.io/worker=
 
 ## 4. 스케줄러 관찰 — 이 단계의 핵심
 
+> 스케줄러가 **필터 → 점수** 두 단계로 결정한다는 것과
+> 플러그인별 가중치는 [`notes/kubernetes/scheduler.md`](../../notes/kubernetes/scheduler.md)에 정리했다.
+> 아래 실험을 하면서 그 문서를 옆에 두면 관찰이 훨씬 선명해진다.
+
+
 ### 4-1. Stage 2에서 `Pending`이던 파드가 이제 뜬다
 
 ```bash
@@ -515,5 +520,5 @@ for vm in k2-cp1 k2-w1 k2-w2; do virsh start $vm; done
 | 파드가 계속 `Pending` | `kubectl describe pod` 의 `FailedScheduling` 메시지를 끝까지 읽을 것 |
 | 노드 이름이 IP 로 나옴 | cloud-init 의 `hostname` 설정 확인 |
 
-관련: [`notes/kubernetes/cni.md`](../../notes/kubernetes/cni.md) ·
+관련: [`notes/kubernetes/scheduler.md`](../../notes/kubernetes/scheduler.md) · [`notes/kubernetes/cni.md`](../../notes/kubernetes/cni.md) ·
 [`notes/network/diagnosis/`](../../notes/network/diagnosis/)
