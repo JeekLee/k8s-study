@@ -316,6 +316,12 @@ sysctl net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward
 
 ## 3. 컨테이너 런타임 — containerd
 
+> ⚠️ **여러 줄을 한 번에 붙여넣지 말 것.**
+> 주석(`#`)이 섞인 블록을 통째로 붙이면 터미널에서 **일부 줄이 유실될 수 있다.**
+> 명령이 조용히 건너뛰어져 뒤에서 `command not found`나
+> `No such file or directory`로 나타나는데, 원인을 짐작하기 어렵다.
+> **한 줄씩, 각 단계의 확인 명령을 함께 실행한다.**
+
 **쿠버네티스는 컨테이너를 직접 실행하지 않는다.** kubelet은 지시만 하고
 실제 실행은 런타임에게 맡긴다.
 
@@ -433,9 +439,16 @@ sudo kubeadm init \
   --apiserver-advertise-address=192.168.122.11 \
   --pod-network-cidr=10.244.0.0/16 \
   --service-cidr=10.96.0.0/12 \
-  --upload-certs \
-  --kubernetes-version=v1.35.0
+  --upload-certs
 ```
+
+> 💡 **`--kubernetes-version`은 생략한다.** 지정하지 않으면 kubeadm이
+> **자신의 버전**으로 control plane을 띄우므로 kubelet·kubectl과 자동으로 맞는다.
+>
+> 굳이 지정하면 어긋날 수 있다. 예를 들어 설치된 것이 `1.35.8`인데
+> `--kubernetes-version=v1.35.0`을 주면 control plane 컴포넌트만 `1.35.0`이 된다.
+> 같은 마이너라 동작은 하지만 맞춰두는 편이 깔끔하다.
+> (`kubeadm version`으로 확인할 수 있다.)
 
 | 옵션 | 뜻 |
 |---|---|
@@ -449,7 +462,26 @@ sudo kubeadm init \
 > `advertise-address`는 "내가 어디에 바인딩하는가"(로컬 인터페이스에 실제로 있어야 함),
 > `control-plane-endpoint`는 "남들이 나를 어떻게 부르는가"다.
 
-### 5-3. 출력을 반드시 저장한다
+### 5-3. 출력에서 확인할 것
+
+```
+[certs] apiserver serving cert is signed for DNS names [k2-cp1 kubernetes ...]
+        and IPs [10.96.0.1 192.168.122.11 192.168.122.1]
+```
+
+**SAN에 `.11`(자기 자신)과 `.1`(HAProxy)이 둘 다 들어가야 한다.**
+`--control-plane-endpoint`를 준 효과이고, 이래서 나중에 엔드포인트를 바꾸면
+인증서를 재발급해야 한다.
+
+```
+[control-plane-check] Checking kube-apiserver at https://192.168.122.11:6443/livez
+```
+
+kubeadm 자신의 헬스체크는 **엔드포인트가 아니라 로컬 주소**를 쓴다.
+그래서 HAProxy가 없거나 방화벽이 막혀 있어도 `init` 자체는 성공한다.
+**문제는 그 뒤에 kubelet이 엔드포인트로 붙을 때 드러난다** — 1-3절을 건너뛰면 안 되는 이유.
+
+### 5-4. 출력을 반드시 저장한다
 
 성공하면 마지막에 `kubeadm join` 명령이 두 종류 나온다.
 
