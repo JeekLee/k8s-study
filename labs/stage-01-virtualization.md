@@ -8,7 +8,7 @@
 | 대상 | k8s-2 (32 vCPU / 251 GiB) |
 
 > 계획: [`docs/02-roadmap.md`](../docs/02-roadmap.md#stage-1--가상화-기반)
-> 참고: [`notes/infra/`](../notes/infra/)
+> 참고: [`notes/infra/libvirt-kvm.md`](../notes/infra/libvirt-kvm.md)
 
 ## 완료 기준
 
@@ -35,8 +35,10 @@
 
 ## 미리 알고 있는 함정
 
-- **`qemu-kvm` 패키지가 없다.** Ubuntu 26.04에서는 `qemu-system-x86`으로 바뀌었다.
-  실측 확인: `qemu-system-x86` 1:10.2.1, `libvirt-daemon-system` 12.0.0, `virtinst` 5.1.0 설치 가능
+- **`qemu-kvm` 패키지가 없다.** Ubuntu 26.04에서는 `qemu-system-x86`으로 바뀌었다
 - `usermod -aG libvirt,kvm` 후 **재로그인**해야 그룹이 적용된다
-- 기본 NAT 모드가 아니라 **routed 모드**로 잡아야 Stage 4에서 크로스 호스트 라우팅이 된다.
-  나중에 바꾸면 VM 네트워크를 다시 잡아야 하므로 지금 해둔다
+- 기본 `default` 네트워크가 이미 `192.168.122.0/24`를 쓰고 있다. **먼저 치워야 한다**
+- NAT이 아니라 **routed 모드**여야 한다. NAT은 출발지를 호스트 IP로 바꿔서
+  Stage 0에서 겪은 주소 불일치가 재발한다
+- routed만으로는 **VM이 인터넷에 못 나간다.** `ens3`로 나가는 트래픽에만 MASQUERADE를 건다
+- VM OS는 **24.04 LTS**를 권한다. 호스트(26.04)와 달라도 되고 kubeadm 검증 범위 안이다
