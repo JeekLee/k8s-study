@@ -1,18 +1,48 @@
 # 전체 계획
 
-## 사전 점검 결과 (2026-09-10 실측)
+## 사전 점검 결과 (2026-09-10)
+
+> 환경 조사 결과. 도구로 수집했다.
+> 직접 수행한 연결성 점검 기록은 [`labs/stage-00-baseline.md`](../labs/stage-00-baseline.md)에 있다.
+
+### 노드 스펙
+
+| | k8s-1 | k8s-2 |
+|---|---|---|
+| CPU | Xeon Platinum 8358 @2.60GHz — **16 vCPU** (8C/2T) | 동일 — **32 vCPU** (16C/2T) |
+| Memory | **125 GiB** | **251 GiB** |
+| Swap | 0B | 0B |
+| Disk | 3.9 TB BlockVolume, `/` ext4 3.8T (사용 1%) | 동일 |
+| OS | Ubuntu 26.04 LTS | 동일 |
+| Kernel | 7.0.0-1009-oracle (x86_64) | 동일 |
+| 가상화 | KVM 게스트 (클라우드 VM) | 동일 |
+
+### 판정 요약
 
 | 항목 | 상태 | 내용 |
 |---|---|---|
 | 노드 간 통신 | 🛑 **불가** | 양쪽 사설 대역이 모두 `10.0.0.0/24` — 서로 다른 VCN |
-| 공인 IP 간 포트 | 🛑 22번만 | OCI 보안 목록이 나머지 차단 (`udp/51820` 테스트 결과 BLOCKED) |
+| 공인 IP 간 포트 | 🛑 22번만 | OCI 보안 목록이 나머지 차단 (`udp/51820` BLOCKED) |
 | swap | ✅ | 0B — kubeadm 요구사항 충족 |
 | 커널 모듈 | ✅ | `br_netfilter` · `overlay` · `nf_conntrack` 모두 사용 가능 |
-| 패키지 | ✅ | containerd 2.2.2, wireguard 1.0.20250521 (Ubuntu repo) |
-| kubeadm | ✅ | `1.35.0-1.1` — CKA 시험 버전과 일치 |
-| 중첩 가상화 | ✅ | `/dev/kvm` 존재 → k8s-2 위에 VM 클러스터 구성 가능 |
+| 로컬 방화벽 | ✅ | iptables INPUT에 전체 허용 규칙이 REJECT보다 앞. 차단은 클라우드 레벨 |
+| **중첩 가상화** | ✅ | **양쪽 모두** `vmx` 노출 + `/dev/kvm` 존재 + `kvm_intel` 적재 |
 | sudo | ✅ | 양쪽 NOPASSWD |
+| 인터넷 egress | ✅ | 정상 |
 | OS 조합 | ⚠️ | Ubuntu 26.04 / kernel 7.0 은 kubeadm 검증 대상 밖 |
+
+### 패키지 가용성
+
+| 패키지 | 버전 | 출처 |
+|---|---|---|
+| kubeadm / kubelet / kubectl | **1.35.0-1.1** | pkgs.k8s.io — CKA 시험 버전과 일치 |
+| containerd | 2.2.2-0ubuntu1.1 | Ubuntu repo |
+| wireguard / wireguard-tools | 1.0.20250521-1ubuntu1 | Ubuntu repo |
+| libvirt-daemon-system | 12.0.0-1ubuntu5.3 | Ubuntu repo |
+| virtinst | 1:5.1.0-1 | Ubuntu repo |
+| qemu-system-x86 | 1:10.2.1+ds-1ubuntu3.2 | Ubuntu repo |
+| cloud-image-utils | 0.33-1build1 | Ubuntu repo |
+| ~~qemu-kvm~~ | **없음** | 26.04에서 제거 → `qemu-system-x86` 사용 |
 
 ## 단계
 
