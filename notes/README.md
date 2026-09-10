@@ -11,13 +11,15 @@ notes/
 │   ├── concepts/            개념 — 왜 이런 상황인가
 │   ├── diagnosis/           진단 명령 (번호 = 확인 순서)
 │   └── reference/           검토 중인 기술 (채택 확정 아님)
-└── kubernetes/              컴포넌트별 정리
+├── kubernetes/              컴포넌트별 정리
+└── infra/                   쿠버네티스는 아니지만 필요한 것들
 ```
 
 | 영역 | 내용 |
 |---|---|
 | [`network/`](network/) | VCN, 노드 주소 문제, 진단 명령, 터널 후보 검토 |
 | [`kubernetes/`](kubernetes/) | etcd 등 컴포넌트 |
+| [`infra/`](infra/) | HAProxy, libvirt/KVM, cloud-init |
 
 ## 지금 읽어야 할 것
 
