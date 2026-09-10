@@ -25,7 +25,7 @@ Phase 0을 이해하려면 이 순서:
 
 1. [`network/concepts/01_vcn-vpc.md`](network/concepts/01_vcn-vpc.md) — 두 노드가 왜 못 만나는가
 2. [`network/concepts/02_node-addressing.md`](network/concepts/02_node-addressing.md) — **포트를 다 열어도 안 되는 이유**
-3. [`network/reference/wireguard.md`](network/reference/wireguard.md) — 해결 후보 (검토 중)
+3. [`network/reference/`](network/reference/) — 해결 후보 비교 (검토 중)
 
 ## 사건 기록
 

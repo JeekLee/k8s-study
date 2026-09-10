@@ -126,9 +126,9 @@ A안(보안 목록 전체 개방)은 검토에서 제외된다. 포트를 다 �
 |---|---|
 | **C. WireGuard** | 계층 증가에 따른 진단 복잡도, MTU 조정(`wg0` 1420 + VXLAN 50) |
 | **B'. 한쪽 VCN 재생성** | 두 VCN이 같은 테넌시인가? 인스턴스를 다시 만들어도 되는가? |
-| **D. k8s-2 단독 + VM** | `/dev/kvm`이 살아 있으므로 32C/251G 위에 3노드 구성 가능.<br>네트워크 문제가 통째로 사라지고 HA·업그레이드 실습까지 덮는다 |
+| **D. k8s-2 단독 + 중첩 VM** | `/dev/kvm` 사용 가능 확인됨. 32C/251G 위에 3~5노드 구성 가능.<br>네트워크 문제가 통째로 사라지고 HA·업그레이드 실습까지 덮는다.<br>→ [`notes/network/reference/nested-vm.md`](../notes/network/reference/nested-vm.md) |
 
-판단 재료는 [`notes/network/reference/wireguard.md`](../notes/network/reference/wireguard.md)의 검토 메모에 정리했다.
+후보 비교와 판단 재료는 [`notes/network/reference/`](../notes/network/reference/README.md)에 정리했다.
 
 아래 4~7절은 **C안을 택했을 때의 구성 절차**다. 결정 전까지는 참고 자료로 둔다.
 
