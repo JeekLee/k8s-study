@@ -57,12 +57,12 @@ systemctl status libvirtd
 
 **NAT을 쓰면 Stage 0에서 겪은 주소 불일치 문제가 그대로 재발한다.**
 
-NAT 모드에서 k8s-1의 `vm-cp1`(192.168.121.11)이 k8s-2의 `vm-w2`로 패킷을 보내면,
+NAT 모드에서 k8s-1의 `k1-cp1`(192.168.121.11)이 k8s-2의 `k2-w1`로 패킷을 보내면,
 호스트가 출발지를 자기 IP(`10.10.0.1`)로 바꿔버린다.
 
 ```
-vm-cp1 이 자기를 등록한 주소 : 192.168.121.11
-vm-w2 가 실제로 보는 출발지  : 10.10.0.1        ← 불일치
+k1-cp1 이 자기를 등록한 주소 : 192.168.121.11
+k2-w1 가 실제로 보는 출발지  : 10.10.0.1        ← 불일치
 ```
 
 → [`../network/concepts/02_node-addressing.md`](../network/concepts/02_node-addressing.md)와 **똑같은 실패**다.
@@ -95,9 +95,9 @@ sudo virsh net-autostart default --disable
   <ip address='192.168.122.1' netmask='255.255.255.0'>
     <dhcp>
       <range start='192.168.122.200' end='192.168.122.250'/>
-      <host mac='52:54:00:00:02:11' name='vm-cp3' ip='192.168.122.11'/>
-      <host mac='52:54:00:00:02:21' name='vm-w2'  ip='192.168.122.21'/>
-      <host mac='52:54:00:00:02:22' name='vm-w3'  ip='192.168.122.22'/>
+      <host mac='52:54:00:00:02:11' name='k2-cp1' ip='192.168.122.11'/>
+      <host mac='52:54:00:00:02:21' name='k2-w1'  ip='192.168.122.21'/>
+      <host mac='52:54:00:00:02:22' name='k2-w2'  ip='192.168.122.22'/>
     </dhcp>
   </ip>
 </network>
@@ -175,7 +175,7 @@ sudo curl -LO https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.0
 ```bash
 sudo qemu-img create -f qcow2 \
   -F qcow2 -b /var/lib/libvirt/images/base/ubuntu-24.04-server-cloudimg-amd64.img \
-  /var/lib/libvirt/images/vm-cp3.qcow2 40G
+  /var/lib/libvirt/images/k2-cp1.qcow2 40G
 ```
 
 ### 3. cloud-init seed
@@ -186,8 +186,8 @@ cloud image에는 계정도 비밀번호도 없다. 첫 부팅 때 **cloud-init*
 
 ```yaml
 #cloud-config
-hostname: vm-cp3
-fqdn: vm-cp3
+hostname: k2-cp1
+fqdn: k2-cp1
 users:
   - name: ubuntu
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -201,13 +201,13 @@ package_update: true
 `meta-data`:
 
 ```yaml
-instance-id: vm-cp3
-local-hostname: vm-cp3
+instance-id: k2-cp1
+local-hostname: k2-cp1
 ```
 
 ```bash
 cloud-localds seed.iso user-data meta-data
-sudo mv seed.iso /var/lib/libvirt/images/vm-cp3-seed.iso
+sudo mv seed.iso /var/lib/libvirt/images/k2-cp1-seed.iso
 ```
 
 > `cloud-localds`는 `cloud-image-utils` 패키지에 들어 있다.
@@ -216,10 +216,10 @@ sudo mv seed.iso /var/lib/libvirt/images/vm-cp3-seed.iso
 
 ```bash
 sudo virt-install \
-  --name vm-cp3 \
+  --name k2-cp1 \
   --memory 4096 --vcpus 2 \
-  --disk path=/var/lib/libvirt/images/vm-cp3.qcow2,format=qcow2 \
-  --disk path=/var/lib/libvirt/images/vm-cp3-seed.iso,device=cdrom \
+  --disk path=/var/lib/libvirt/images/k2-cp1.qcow2,format=qcow2 \
+  --disk path=/var/lib/libvirt/images/k2-cp1-seed.iso,device=cdrom \
   --network network=k8snet,mac=52:54:00:00:02:11 \
   --os-variant ubuntu24.04 \
   --graphics none \
@@ -239,8 +239,8 @@ sudo virt-install \
 
 ```bash
 virsh list --all
-virsh domifaddr vm-cp3          # 할당된 IP
-virsh console vm-cp3            # 시리얼 콘솔 (빠져나올 땐 Ctrl+])
+virsh domifaddr k2-cp1          # 할당된 IP
+virsh console k2-cp1            # 시리얼 콘솔 (빠져나올 땐 Ctrl+])
 ssh ubuntu@192.168.122.11
 ```
 
@@ -249,10 +249,10 @@ ssh ubuntu@192.168.122.11
 ## 스냅샷 — Stage 6의 기반
 
 ```bash
-virsh snapshot-create-as vm-cp3 --name before-drill --description "훈련 전"
-virsh snapshot-list    vm-cp3
-virsh snapshot-revert  vm-cp3 before-drill
-virsh snapshot-delete  vm-cp3 before-drill
+virsh snapshot-create-as k2-cp1 --name before-drill --description "훈련 전"
+virsh snapshot-list    k2-cp1
+virsh snapshot-revert  k2-cp1 before-drill
+virsh snapshot-delete  k2-cp1 before-drill
 ```
 
 - VM이 **실행 중**이면 메모리 상태까지 저장한다 (느리고 용량이 큼)
@@ -268,14 +268,14 @@ virsh snapshot-delete  vm-cp3 before-drill
 
 ```bash
 virsh list --all                 # 전체 목록
-virsh start    vm-cp3
-virsh shutdown vm-cp3            # 정상 종료 (ACPI)
-virsh destroy  vm-cp3            # 강제 종료 = 전원 뽑기
-virsh undefine vm-cp3 --remove-all-storage   # 정의와 디스크까지 삭제
-virsh autostart vm-cp3           # 호스트 부팅 시 자동 시작
-virsh edit     vm-cp3            # XML 직접 수정
-virsh dominfo  vm-cp3
-virsh domifaddr vm-cp3
+virsh start    k2-cp1
+virsh shutdown k2-cp1            # 정상 종료 (ACPI)
+virsh destroy  k2-cp1            # 강제 종료 = 전원 뽑기
+virsh undefine k2-cp1 --remove-all-storage   # 정의와 디스크까지 삭제
+virsh autostart k2-cp1           # 호스트 부팅 시 자동 시작
+virsh edit     k2-cp1            # XML 직접 수정
+virsh dominfo  k2-cp1
+virsh domifaddr k2-cp1
 ```
 
 > `shutdown`과 `destroy`를 헷갈리지 말 것.
@@ -286,8 +286,8 @@ virsh domifaddr vm-cp3
 | 증상 | 확인 |
 |---|---|
 | `failed to connect to the hypervisor` | `id`로 `libvirt` 그룹 확인 → 재로그인 |
-| VM이 안 뜸 | `sudo cat /var/log/libvirt/qemu/vm-cp3.log` |
-| 부팅 과정을 보고 싶음 | `virsh start vm-cp3 --console` |
+| VM이 안 뜸 | `sudo cat /var/log/libvirt/qemu/k2-cp1.log` |
+| 부팅 과정을 보고 싶음 | `virsh start k2-cp1 --console` |
 | IP가 안 잡힘 | `virsh domifaddr`, MAC이 XML 예약과 맞는지 |
 | SSH 안 됨 | `virsh console`로 들어가 `cloud-init status --long` |
 | 네트워크 확인 | `virsh net-list --all`, `ip addr show virbr1` |

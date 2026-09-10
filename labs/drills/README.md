@@ -9,8 +9,8 @@
 부수는 데 드는 심리적 비용이 0이 되어야 훈련이 반복된다.
 
 ```bash
-virsh snapshot-create-as vm-cp1 before-drill
-virsh snapshot-revert  vm-cp1 before-drill
+virsh snapshot-create-as k1-cp1 before-drill
+virsh snapshot-revert  k1-cp1 before-drill
 ```
 
 ## 훈련 목록

@@ -170,8 +170,8 @@ NAT 모드는 VM이 밖으로 나갈 때 **출발지 주소를 호스트 IP로 �
 Stage 4에서 k8s-1의 VM이 k8s-2의 VM에 접속하면:
 
 ```
-vm-cp1 이 자기를 등록한 주소  : 192.168.121.11
-vm-w2 가 실제로 보는 출발지   : 10.10.0.1        ← 불일치
+k1-cp1 이 자기를 등록한 주소  : 192.168.121.11
+k2-w1 가 실제로 보는 출발지   : 10.10.0.1        ← 불일치
 ```
 
 [Stage 0에서 겪은 주소 불일치](../../notes/network/concepts/02_node-addressing.md)가 **한 층 안쪽에서 그대로 재발한다.**
@@ -190,9 +190,9 @@ cat > ~/k8snet.xml <<'XMLEOF'
   <ip address='192.168.122.1' netmask='255.255.255.0'>
     <dhcp>
       <range start='192.168.122.200' end='192.168.122.250'/>
-      <host mac='52:54:00:00:02:11' name='vm-cp3' ip='192.168.122.11'/>
-      <host mac='52:54:00:00:02:21' name='vm-w2'  ip='192.168.122.21'/>
-      <host mac='52:54:00:00:02:22' name='vm-w3'  ip='192.168.122.22'/>
+      <host mac='52:54:00:00:02:11' name='k2-cp1' ip='192.168.122.11'/>
+      <host mac='52:54:00:00:02:21' name='k2-w1'  ip='192.168.122.21'/>
+      <host mac='52:54:00:00:02:22' name='k2-w2'  ip='192.168.122.22'/>
     </dhcp>
   </ip>
 </network>
@@ -295,9 +295,9 @@ ls -lh
 ```bash
 sudo qemu-img create -f qcow2 \
   -F qcow2 -b /var/lib/libvirt/images/base/ubuntu-24.04-server-cloudimg-amd64.img \
-  /var/lib/libvirt/images/vm-cp3.qcow2 40G
+  /var/lib/libvirt/images/k2-cp1.qcow2 40G
 
-sudo qemu-img info /var/lib/libvirt/images/vm-cp3.qcow2
+sudo qemu-img info /var/lib/libvirt/images/k2-cp1.qcow2
 ```
 
 | 옵션 | 뜻 |
@@ -315,7 +315,7 @@ cloud image에는 **계정도 비밀번호도 없다.** 첫 부팅 때 cloud-ini
 작은 ISO로 만들어 CD처럼 붙여준다.
 
 ```bash
-mkdir -p ~/vm/vm-cp3 && cd ~/vm/vm-cp3
+mkdir -p ~/vm/k2-cp1 && cd ~/vm/k2-cp1
 
 # SSH 공개키 확인 (없으면 ssh-keygen -t ed25519 로 생성)
 cat ~/.ssh/id_ed25519.pub
@@ -324,8 +324,8 @@ cat ~/.ssh/id_ed25519.pub
 ```bash
 cat > user-data <<'CIEOF'
 #cloud-config
-hostname: vm-cp3
-fqdn: vm-cp3
+hostname: k2-cp1
+fqdn: k2-cp1
 users:
   - name: ubuntu
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -337,8 +337,8 @@ package_update: true
 CIEOF
 
 cat > meta-data <<'MDEOF'
-instance-id: vm-cp3
-local-hostname: vm-cp3
+instance-id: k2-cp1
+local-hostname: k2-cp1
 MDEOF
 ```
 
@@ -354,7 +354,7 @@ ISO로 만든다:
 
 ```bash
 cloud-localds seed.iso user-data meta-data
-sudo mv seed.iso /var/lib/libvirt/images/vm-cp3-seed.iso
+sudo mv seed.iso /var/lib/libvirt/images/k2-cp1-seed.iso
 ```
 
 ---
@@ -363,10 +363,10 @@ sudo mv seed.iso /var/lib/libvirt/images/vm-cp3-seed.iso
 
 ```bash
 sudo virt-install \
-  --name vm-cp3 \
+  --name k2-cp1 \
   --memory 4096 --vcpus 2 \
-  --disk path=/var/lib/libvirt/images/vm-cp3.qcow2,format=qcow2 \
-  --disk path=/var/lib/libvirt/images/vm-cp3-seed.iso,device=cdrom \
+  --disk path=/var/lib/libvirt/images/k2-cp1.qcow2,format=qcow2 \
+  --disk path=/var/lib/libvirt/images/k2-cp1-seed.iso,device=cdrom \
   --network network=k8snet,mac=52:54:00:00:02:11 \
   --os-variant ubuntu24.04 \
   --graphics none \
@@ -395,9 +395,9 @@ sudo virt-install \
 ```bash
 virsh list --all
 #  Id   Name     State
-#  1    vm-cp3   running
+#  1    k2-cp1   running
 
-virsh domifaddr vm-cp3
+virsh domifaddr k2-cp1
 #  vnet0  52:54:00:00:02:11  ipv4  192.168.122.11/24   ← 예약한 주소가 나와야 함
 ```
 
@@ -410,7 +410,7 @@ ssh ubuntu@192.168.122.11
 안 되면 콘솔로 들어가 본다:
 
 ```bash
-virsh console vm-cp3
+virsh console k2-cp1
 # 빠져나올 때는 Ctrl + ]
 ```
 
@@ -438,8 +438,8 @@ ssh ubuntu@192.168.122.11 'touch ~/BEFORE_SNAPSHOT && ls ~'
 
 ```bash
 # 호스트에서 스냅샷
-virsh snapshot-create-as vm-cp3 --name clean --description "기본 상태"
-virsh snapshot-list vm-cp3
+virsh snapshot-create-as k2-cp1 --name clean --description "기본 상태"
+virsh snapshot-list k2-cp1
 ```
 
 ```bash
@@ -449,7 +449,7 @@ ssh ubuntu@192.168.122.11 'sudo rm -rf /etc/apt && touch ~/BROKEN && ls ~'
 
 ```bash
 # 되돌린다
-virsh snapshot-revert vm-cp3 clean
+virsh snapshot-revert k2-cp1 clean
 ssh ubuntu@192.168.122.11 'ls ~ && ls /etc/apt'
 ```
 

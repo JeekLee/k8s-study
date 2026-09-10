@@ -33,19 +33,19 @@ CPU 플래그    : vmx                          ← 게스트에 노출됨
 ```
 물리 서버 (클라우드 데이터센터)
 └─ k8s-2  ← VM (32 vCPU / 251 GiB / 3.8 TB)
-   ├─ vm-cp1   ← VM 안의 VM
-   ├─ vm-cp2
-   ├─ vm-cp3
-   ├─ vm-w1
-   └─ vm-w2
+   ├─ k1-cp1   ← VM 안의 VM
+   ├─ k1-cp2
+   ├─ k2-cp1
+   ├─ k1-w1
+   └─ k2-w1
 ```
 
 ### 자원 배분안
 
 | VM | vCPU | RAM | 디스크 | 역할 |
 |---|---:|---:|---:|---|
-| vm-cp1 ~ cp3 | 2 | 4 GiB | 40 GB | control plane (etcd 쿼럼 3) |
-| vm-w1 ~ w2 | 4 | 8 GiB | 60 GB | worker |
+| k1-cp1 ~ cp3 | 2 | 4 GiB | 40 GB | control plane (etcd 쿼럼 3) |
+| k1-w1 ~ w2 | 4 | 8 GiB | 60 GB | worker |
 | **합계** | **14** | **28 GiB** | **240 GB** | |
 | **남는 자원** | 18 | 223 GiB | 3.5 TB | |
 
@@ -59,11 +59,11 @@ libvirt로 VM을 만들면 k8s-2 안에 **가상 스위치**(`virbr0`)가 생기
 ```
 k8s-2 내부
    virbr0 (가상 스위치)  192.168.122.1
-      ├── vm-cp1  192.168.122.11
-      ├── vm-cp2  192.168.122.12
-      ├── vm-cp3  192.168.122.13
-      ├── vm-w1   192.168.122.21
-      └── vm-w2   192.168.122.22
+      ├── k1-cp1  192.168.122.11
+      ├── k1-cp2  192.168.122.12
+      ├── k2-cp1  192.168.122.13
+      ├── k1-w1   192.168.122.21
+      └── k2-w1   192.168.122.22
 ```
 
 **전부 같은 네트워크에 있다.** 그러면 [노드 주소 문제](../concepts/02_node-addressing.md)의
@@ -137,8 +137,8 @@ Canonical이 만든 Ubuntu VM 관리 도구. snap으로 설치한다 (k8s-2에 s
 
 ```bash
 sudo snap install multipass
-multipass launch --name vm-cp1 --cpus 2 --memory 4G --disk 40G
-multipass shell vm-cp1
+multipass launch --name k1-cp1 --cpus 2 --memory 4G --disk 40G
+multipass shell k1-cp1
 ```
 
 libvirt보다 손이 훨씬 덜 가지만 세밀한 제어는 덜 된다. **처음 시작할 때 유리하다.**
@@ -147,12 +147,12 @@ libvirt보다 손이 훨씬 덜 가지만 세밀한 제어는 덜 된다. **처�
 
 ```bash
 # libvirt
-virsh snapshot-create-as vm-cp1 before-upgrade
-virsh snapshot-revert  vm-cp1 before-upgrade
+virsh snapshot-create-as k1-cp1 before-upgrade
+virsh snapshot-revert  k1-cp1 before-upgrade
 
 # multipass
-multipass snapshot vm-cp1 --name before-upgrade
-multipass restore vm-cp1.before-upgrade
+multipass snapshot k1-cp1 --name before-upgrade
+multipass restore k1-cp1.before-upgrade
 ```
 
 ## 비교 — kind 는 어떤가
