@@ -6,7 +6,7 @@
 |---|---|---|
 | 0 | [기반 개념과 진단 도구](stage-00-baseline.md) | ✅ 완료 |
 | 1 | [가상화 기반](stage-01-virtualization.md) | ✅ 완료 |
-| 2 | [첫 클러스터](stage-02-first-cluster.md) | 📝 계획 수준 |
+| 2 | [첫 클러스터](stage-02-first-cluster.md) | 📖 절차 작성 완료 |
 | 3 | [다중 노드](stage-03-multi-node.md) | 📝 계획 수준 |
 | 4 | [크로스 호스트 라우팅](stage-04-cross-host.md) | 📝 계획 수준 |
 | 5 | [HA control plane](stage-05-ha.md) | 📝 계획 수준 |
