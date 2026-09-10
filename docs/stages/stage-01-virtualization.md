@@ -448,13 +448,26 @@ cat ~/.ssh/id_ed25519.pub               # ← 이 줄 전체를 복사
 cat ~/.ssh/id_ed25519_cryptolab.pub     # 또는 평소 쓰는 키
 ```
 
-### 7-3. user-data 작성
+### 7-3. 파일 두 개를 만든다
+
+**텍스트 파일 두 개를 만드는 것**이다. 이름이 정확히 `user-data`, `meta-data`여야 한다
+(확장자 없음). cloud-init이 이 이름으로 찾도록 정해져 있다(NoCloud 방식).
+
+```
+~/vm/k2-cp1/
+├── user-data     ← 만든다. 계정·SSH 키·호스트명
+├── meta-data     ← 만든다. 인스턴스 식별자
+└── seed.iso      ← cloud-localds 가 위 둘로 생성
+```
 
 ```bash
 mkdir -p ~/vm/k2-cp1 && cd ~/vm/k2-cp1
 ```
 
-```yaml
+**`user-data`** — 공개키 두 줄은 7-2에서 확인한 실제 값으로 바꾼다.
+
+```bash
+cat > user-data <<'CLOUDCFG'
 #cloud-config
 hostname: k2-cp1
 fqdn: k2-cp1
@@ -463,39 +476,62 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA...맥의_공개키...       # 맥에서 ProxyJump 로 직접 접속
-      - ssh-ed25519 AAAA...k8s-2의_공개키...    # 호스트에서 스크립트로 접속
+      - ssh-ed25519 AAAA...맥의_공개키...
+      - ssh-ed25519 AAAA...k8s-2의_공개키...
 ssh_pwauth: false
 package_update: true
+CLOUDCFG
 ```
 
-`meta-data`:
+**`meta-data`**
 
-```yaml
+```bash
+cat > meta-data <<'METADATA'
 instance-id: k2-cp1
 local-hostname: k2-cp1
+METADATA
 ```
+
+> `cat > 파일명 <<'표시' ... 표시`는 여러 줄을 파일로 쓰는 방법이다.
+> `vim user-data`로 직접 편집해도 똑같다.
+>
+> **공개키는 `ssh-ed25519 AAAA...`로 시작하는 한 줄 전체**를 그대로 붙여넣는다.
+> 줄바꿈이 들어가면 인식되지 않는다.
+
+각 항목의 뜻:
 
 | 항목 | 뜻 |
 |---|---|
 | `#cloud-config` | **첫 줄에 반드시 있어야 한다.** 없으면 cloud-init이 통째로 무시한다 |
+| `hostname` / `fqdn` | VM의 호스트명. 쿠버네티스 노드 이름이 된다 |
 | `users` | 만들 계정. `sudo: NOPASSWD`로 자동화 가능하게 |
 | `ssh_authorized_keys` | 등록할 **공개키 목록.** 여러 개 가능 |
 | `ssh_pwauth: false` | 비밀번호 로그인 차단. 키만 허용 |
 | `package_update` | 첫 부팅 때 `apt update` 실행 |
 | `instance-id` | cloud-init이 "처음 부팅인가"를 판단하는 키. **VM마다 다르게** |
 
-> `instance-id`가 같으면 cloud-init이 "이미 처리한 인스턴스"로 보고 건너뛴다.
-> VM을 새로 만들 때 이걸 안 바꾸면 설정이 적용되지 않는다.
+> ⚠️ **`instance-id`가 같으면 cloud-init이 건너뛴다.**
+> "이미 처리한 인스턴스"로 보기 때문이다. VM을 새로 만들 때 이걸 안 바꾸면
+> 계정이 생기지 않아 접속이 안 되는데, 원인 찾기가 은근히 어렵다.
 
-### 7-4. ISO로 만들기
+### 7-4. ISO로 묶기
+
+두 파일을 CD 이미지 하나로 만든다. VM에 이 CD를 꽂아주면 부팅 때 읽는다.
 
 ```bash
+# 내용 확인 — 공개키가 제대로 들어갔는지
+cat user-data
+
+# ISO 생성
 cloud-localds seed.iso user-data meta-data
+ls -lh seed.iso                 # 몇 KB 짜리 파일이 생긴다
+
+# libvirt 이미지 디렉터리로
 sudo mv seed.iso /var/lib/libvirt/images/k2-cp1-seed.iso
 ```
 
 `cloud-localds`는 `cloud-image-utils` 패키지에 들어 있다.
+두 파일을 `cidata` 라벨이 붙은 ISO로 묶어주는데, cloud-init이 그 라벨을 보고 찾는다.
 
 ### 7-5. 맥에서 바로 들어가려면
 

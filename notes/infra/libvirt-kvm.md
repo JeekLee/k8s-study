@@ -180,11 +180,16 @@ sudo qemu-img create -f qcow2 \
 
 ### 3. cloud-init seed
 
-cloud image에는 계정도 비밀번호도 없다. 첫 부팅 때 **cloud-init**이 읽을 설정을 ISO로 붙여준다.
+cloud image에는 계정도 비밀번호도 없다. 첫 부팅 때 cloud-init이 읽을 설정을
+**텍스트 파일 두 개**로 만들고 ISO로 묶어 CD처럼 붙여준다.
 
-`user-data`:
+이름이 정확히 `user-data`, `meta-data`여야 한다 (확장자 없음).
+cloud-init의 NoCloud 방식이 이 이름으로 찾는다.
 
-```yaml
+```bash
+mkdir -p ~/vm/k2-cp1 && cd ~/vm/k2-cp1
+
+cat > user-data <<'CLOUDCFG'
 #cloud-config
 hostname: k2-cp1
 fqdn: k2-cp1
@@ -193,24 +198,28 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA...      # 호스트의 ~/.ssh/id_*.pub 내용
+      - ssh-ed25519 AAAA...          # VM에 접속할 기계들의 공개키
 ssh_pwauth: false
 package_update: true
-```
+CLOUDCFG
 
-`meta-data`:
-
-```yaml
+cat > meta-data <<'METADATA'
 instance-id: k2-cp1
 local-hostname: k2-cp1
-```
+METADATA
 
-```bash
 cloud-localds seed.iso user-data meta-data
 sudo mv seed.iso /var/lib/libvirt/images/k2-cp1-seed.iso
 ```
 
-> `cloud-localds`는 `cloud-image-utils` 패키지에 들어 있다.
+| 항목 | 뜻 |
+|---|---|
+| `#cloud-config` | **첫 줄에 반드시.** 없으면 통째로 무시된다 |
+| `ssh_authorized_keys` | 공개키 목록. 여러 개 가능 |
+| `instance-id` | "처음 부팅인가" 판단용. **같으면 설정을 건너뛴다** |
+
+`cloud-localds`는 `cloud-image-utils` 패키지에 들어 있다.
+두 파일을 `cidata` 라벨의 ISO로 묶는다 — cloud-init이 그 라벨을 보고 찾는다.
 
 ### 4. virt-install
 
