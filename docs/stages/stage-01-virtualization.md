@@ -405,15 +405,56 @@ sudo qemu-img info /var/lib/libvirt/images/k2-cp1.qcow2
 cloud image에는 **계정도 비밀번호도 없다.** 첫 부팅 때 cloud-init이 읽을 설정을
 작은 ISO로 만들어 CD처럼 붙여준다.
 
-```bash
-mkdir -p ~/vm/k2-cp1 && cd ~/vm/k2-cp1
+### 7-1. 어느 기계의 키를 넣을 것인가
 
-# SSH 공개키 확인 (없으면 ssh-keygen -t ed25519 로 생성)
-cat ~/.ssh/id_ed25519.pub
+cloud-init은 키를 **만들지 않는다.** 우리가 준 공개키를 VM의
+`~/.ssh/authorized_keys`에 써줄 뿐이다. 그래서 **VM에 접속할 주체**의 공개키를 넣어야 한다.
+
+접속 경로가 둘이다.
+
+```
+① 맥 ──(ProxyJump k8s-2)──> VM        인증은 맥의 키로
+② k8s-2 ─────────────────> VM        인증은 k8s-2의 키로
 ```
 
+②가 필요한 이유는 **호스트에서 VM을 다루는 일이 많기 때문**이다.
+10절의 스냅샷 검증이 그렇고, 앞으로 VM 6대를 스크립트로 다루게 되면 더 필요해진다.
+
+> ⚠️ **맥의 개인키를 k8s-2로 복사하지 말 것.**
+> 개인키는 기계 사이를 옮기지 않는다. 한 기계가 털리면 다른 기계까지 같이 털린다.
+> **기계마다 키를 따로 만들고 공개키만 등록**하는 것이 원칙이다.
+
+**두 공개키를 모두 등록하면 된다.** `ssh_authorized_keys`는 목록이다.
+
+### 7-2. 공개키 준비
+
+**k8s-2에서** — 아직 키가 없을 것이다. 갓 만든 서버이므로.
+
 ```bash
-cat > user-data <<'CIEOF'
+ls -la ~/.ssh/                          # id_* 파일이 있는지 확인
+
+# 없으면 만든다 (있으면 건너뛴다)
+ssh-keygen -t ed25519 -C "k8s-2 to VMs" -f ~/.ssh/id_ed25519 -N ""
+
+cat ~/.ssh/id_ed25519.pub               # ← 이 줄 전체를 복사
+```
+
+`-N ""`는 암호구절 없이 만든다는 뜻이다. 스크립트로 VM을 다룰 것이라
+매번 암호를 묻지 않게 한다. (호스트 접근이 이미 통제되어 있으므로 감수할 만하다.)
+
+**맥에서** — 이미 쓰고 있는 키의 공개키를 확인한다.
+
+```bash
+cat ~/.ssh/id_ed25519_cryptolab.pub     # 또는 평소 쓰는 키
+```
+
+### 7-3. user-data 작성
+
+```bash
+mkdir -p ~/vm/k2-cp1 && cd ~/vm/k2-cp1
+```
+
+```yaml
 #cloud-config
 hostname: k2-cp1
 fqdn: k2-cp1
@@ -422,33 +463,54 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA...여기에_위에서_확인한_공개키_전체...
+      - ssh-ed25519 AAAA...맥의_공개키...       # 맥에서 ProxyJump 로 직접 접속
+      - ssh-ed25519 AAAA...k8s-2의_공개키...    # 호스트에서 스크립트로 접속
 ssh_pwauth: false
 package_update: true
-CIEOF
+```
 
-cat > meta-data <<'MDEOF'
+`meta-data`:
+
+```yaml
 instance-id: k2-cp1
 local-hostname: k2-cp1
-MDEOF
 ```
 
 | 항목 | 뜻 |
 |---|---|
-| `#cloud-config` | **첫 줄에 반드시 있어야 한다.** 없으면 cloud-init이 무시한다 |
+| `#cloud-config` | **첫 줄에 반드시 있어야 한다.** 없으면 cloud-init이 통째로 무시한다 |
 | `users` | 만들 계정. `sudo: NOPASSWD`로 자동화 가능하게 |
-| `ssh_authorized_keys` | 호스트의 공개키. 이게 있어야 SSH로 들어간다 |
-| `ssh_pwauth: false` | 비밀번호 로그인 차단 |
-| `instance-id` | cloud-init이 "처음 부팅인가"를 판단하는 키. VM마다 다르게 |
+| `ssh_authorized_keys` | 등록할 **공개키 목록.** 여러 개 가능 |
+| `ssh_pwauth: false` | 비밀번호 로그인 차단. 키만 허용 |
+| `package_update` | 첫 부팅 때 `apt update` 실행 |
+| `instance-id` | cloud-init이 "처음 부팅인가"를 판단하는 키. **VM마다 다르게** |
 
-ISO로 만든다:
+> `instance-id`가 같으면 cloud-init이 "이미 처리한 인스턴스"로 보고 건너뛴다.
+> VM을 새로 만들 때 이걸 안 바꾸면 설정이 적용되지 않는다.
+
+### 7-4. ISO로 만들기
 
 ```bash
 cloud-localds seed.iso user-data meta-data
 sudo mv seed.iso /var/lib/libvirt/images/k2-cp1-seed.iso
 ```
 
----
+`cloud-localds`는 `cloud-image-utils` 패키지에 들어 있다.
+
+### 7-5. 맥에서 바로 들어가려면
+
+VM 네트워크(`192.168.122.0/24`)는 k8s-2 안에만 존재하므로 맥에서 직접 안 닿는다.
+`~/.ssh/config`에 `ProxyJump`를 걸면 한 번에 들어갈 수 있다.
+
+```
+Host k2-cp1
+    HostName 192.168.122.11
+    User ubuntu
+    ProxyJump k8s-2
+```
+
+`ProxyJump`는 k8s-2를 **통로로만** 쓴다. VM 인증은 맥의 키로 이뤄지므로
+7-3에 맥의 공개키를 넣어둔 것이다.
 
 ## 8. VM 생성
 
