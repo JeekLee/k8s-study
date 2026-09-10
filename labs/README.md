@@ -26,7 +26,7 @@ labs/
 
 | Stage | 기록 | 상태 |
 |---|---|---|
-| 0 | — | ✅ 완료 (개념 정리라 `notes/`에 남음) |
+| 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ✅ 완료 (네트워크 검증 일부는 Stage 4로 이월) |
 | 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ⬜ 진행 전 |
 | 2 | | |
 | 3 | | |
