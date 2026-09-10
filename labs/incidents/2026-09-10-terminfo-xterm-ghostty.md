@@ -119,6 +119,35 @@ systemctl status haproxy --no-pager      # 페이저도 안 쓰면 더 깔끔
 
 ---
 
+## 후속 2 — VM 에서 또 발생
+
+Stage 3 에서 워커 VM 에 접속하니 같은 증상이 났다.
+
+**원인** — 호스트 두 대에만 심었고 **VM 안에는 없었다.**
+SSH 는 클라이언트의 `TERM` 을 그대로 전달하므로,
+호스트(`xterm-ghostty`)에서 VM 으로 들어가면 VM 도 그 값을 받는다.
+
+**해결** — VM 3대에도 시스템 경로로 설치.
+
+```bash
+# 호스트에서
+for ip in 192.168.122.11 192.168.122.21 192.168.122.22; do
+  infocmp -x xterm-ghostty | ssh ubuntu@$ip "sudo tic -x -o /usr/share/terminfo -"
+done
+```
+
+**중간에 시도했다가 물린 것** — 호스트의 `~/.ssh/config` 에
+`SetEnv TERM=xterm-256color` 를 넣어 우회하려 했다.
+그런데 `TERM` 은 일반 환경변수가 아니라 **pty 요청에 실려 전달**되므로
+`SetEnv` 로 확실히 덮인다는 보장이 없다. 검증도 어려웠다.
+**호스트에서 이미 통한 방법(terminfo 설치)을 그대로 쓰는 쪽이 확실했다.**
+
+**배운 것** — `TERM` 은 SSH 를 타고 **끝까지 전파된다.**
+맥 → 호스트 → VM 3단이면 세 곳 모두에 terminfo 가 있어야 한다.
+새 VM 을 만들 때마다 반복되므로, cloud-init 에 넣는 것도 방법이다.
+
+---
+
 ## 배운 것
 
 - `TERM`은 터미널 이름이 아니라 **terminfo DB 조회 키**다. 원격에 그 항목이 없으면 이름만 전달돼봐야 소용없다.

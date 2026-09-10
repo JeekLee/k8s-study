@@ -62,6 +62,14 @@ sudo bash prep-node.sh
 
 `k2-w2`(192.168.122.22)에도 동일하게.
 
+> 호스트에서 한 번에 돌리려면:
+> ```bash
+> for ip in 192.168.122.21 192.168.122.22; do
+>   ssh ubuntu@$ip 'curl -sL https://raw.githubusercontent.com/JeekLee/k8s-study/main/scripts/prep-node.sh -o /tmp/p.sh && sudo bash /tmp/p.sh'
+> done
+> ```
+> 다만 **처음 한 번은 스크립트를 읽고 수동으로 돌려볼 것.**
+
 스크립트가 하는 일은 [`scripts/prep-node.sh`](../../scripts/prep-node.sh) 참고.
 Stage 2의 2~4절과 같다. 다만 **워커에는 `kubectl`을 설치하지 않는다** —
 관리 명령은 control plane이나 맥에서 친다.
@@ -77,22 +85,58 @@ systemctl is-active containerd
 
 ---
 
-## 2. join 토큰
+## 2. join — 호스트에서 던진다
 
-`kubeadm init`이 출력한 토큰은 **기본 24시간 뒤 만료**된다.
-지났다면 재발급한다 — 어차피 CKA에 나오는 명령이다.
+### 왜 VM 터미널에 붙여넣지 않나
 
-**control plane(`k2-cp1`)에서:**
+`kubeadm join` 명령은 토큰과 CA 해시가 붙어 **아주 길다.**
+VM 터미널에 붙여넣으면 줄이 잘려 앞부분(`sudo kubeadm join`)이 통째로 유실되고,
+남은 꼬리만 실행되어 이런 오류가 난다:
 
-```bash
-kubeadm token list                          # 남은 시간 확인
-
-kubeadm token create --print-join-command
-# kubeadm join 192.168.122.1:6443 --token <토큰> \
-#   --discovery-token-ca-cert-hash sha256:<해시>
+```
+[ERROR IsPrivilegedUser]: user is not running as root
 ```
 
-`--print-join-command`가 편하다. 토큰 생성과 CA 해시 계산을 한 번에 해준다.
+`sudo`를 빠뜨린 것처럼 보이지만 **실제로는 붙여넣기가 잘린 것**이다.
+
+**호스트에서 SSH로 던지면 사람 손이 긴 문자열을 거치지 않는다.**
+
+### 토큰 발급과 join
+
+`kubeadm init`이 출력한 토큰은 **기본 24시간 뒤 만료**된다.
+지났으면 재발급한다 — 어차피 CKA에 나오는 명령이다.
+
+**k8s-2 호스트에서, 한 줄씩:**
+
+```bash
+JOIN=$(ssh ubuntu@192.168.122.11 'sudo kubeadm token create --print-join-command')
+```
+
+```bash
+echo "$JOIN"
+# kubeadm join 192.168.122.1:6443 --token ... --discovery-token-ca-cert-hash sha256:...
+```
+
+```bash
+ssh ubuntu@192.168.122.21 "sudo $JOIN"
+```
+
+```bash
+ssh ubuntu@192.168.122.22 "sudo $JOIN"
+```
+
+VM 들은 cloud-init 에서 NOPASSWD sudo 로 설정했으므로 tty 없이도 동작한다.
+
+### 토큰 관련 명령
+
+```bash
+# control plane 에서
+kubeadm token list                          # 남은 시간 확인
+kubeadm token create --print-join-command    # 재발급 (가장 편하다)
+kubeadm token delete <토큰>
+```
+
+`--print-join-command`는 토큰 생성과 CA 해시 계산을 한 번에 해준다.
 
 > 해시를 직접 구하려면:
 > ```bash
@@ -105,18 +149,7 @@ kubeadm token create --print-join-command
 > 토큰은 "내가 들어갈 자격이 있다"를, 해시는 "네가 맞는 상대다"를 증명한다.
 > 양방향 인증이다.
 
----
-
-## 3. `kubeadm join`
-
-**각 워커에서** 실행한다.
-
-```bash
-sudo kubeadm join 192.168.122.1:6443 --token <토큰> \
-  --discovery-token-ca-cert-hash sha256:<해시>
-```
-
-출력에서 볼 것:
+### join 출력에서 볼 것
 
 ```
 [preflight] Running pre-flight checks
@@ -126,11 +159,11 @@ sudo kubeadm join 192.168.122.1:6443 --token <토큰> \
 This node has joined the cluster
 ```
 
-**설정을 클러스터에서 받아온다.** `kubeadm-config` ConfigMap과
-`kubelet-config`를 읽으므로, 워커에서 파드 CIDR 같은 값을 다시 줄 필요가 없다.
+**설정을 클러스터에서 받아온다.** `kubeadm-config` ConfigMap 과
+`kubelet-config` 를 읽으므로, 워커에서 파드 CIDR 같은 값을 다시 줄 필요가 없다.
 
 > 여기서 워커는 **엔드포인트(`192.168.122.1:6443`)로 접속**한다.
-> Stage 2의 [INPUT 방화벽 규칙](stage-02-first-cluster.md)이 없으면 이 단계에서 막힌다.
+> Stage 2 의 [INPUT 방화벽 규칙](stage-02-first-cluster.md)이 없으면 이 단계에서 막힌다.
 
 ### 확인
 
@@ -475,6 +508,8 @@ for vm in k2-cp1 k2-w1 k2-w2; do virsh start $vm; done
 |---|---|
 | `kubeadm join`이 타임아웃 | 엔드포인트 도달 확인 — `nc -vz -w3 192.168.122.1 6443` |
 | 토큰 만료 | `kubeadm token create --print-join-command` |
+| `[ERROR IsPrivilegedUser]` | `sudo` 누락처럼 보이지만 **붙여넣기가 잘린 것**이 흔하다. 호스트에서 SSH 로 던질 것 |
+| VM 에서 `clear`·`vim` 깨짐 | VM 에 terminfo 가 없다 — `infocmp -x $TERM \| ssh <VM> "sudo tic -x -o /usr/share/terminfo -"` |
 | join 후 노드가 `NotReady` | `kubectl get pods -n calico-system -o wide` — 그 노드의 `calico-node` 상태 |
 | `drain`이 거부됨 | `--ignore-daemonsets`, `--delete-emptydir-data` |
 | 파드가 계속 `Pending` | `kubectl describe pod` 의 `FailedScheduling` 메시지를 끝까지 읽을 것 |
