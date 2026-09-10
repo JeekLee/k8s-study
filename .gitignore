@@ -1,0 +1,33 @@
+# ─── 자격증명 · 인증서 (절대 커밋 금지) ───
+kubeconfig
+*.kubeconfig
+admin.conf
+.kube/
+*.key
+*.pem
+*.crt
+!**/example/*.crt
+
+# ─── WireGuard ───
+privatekey
+publickey
+wg*.conf
+!wg*.conf.example
+
+# ─── etcd 스냅샷 ───
+*.db
+*.snapshot
+
+# ─── 환경변수 ───
+.env
+.env.*
+!.env.example
+
+# ─── OS · 편집기 ───
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# ─── 실제 호스트 정보 (공개 저장소이므로 로컬 전용) ───
+docs/hosts.local.md
