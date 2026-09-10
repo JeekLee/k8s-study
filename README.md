@@ -43,20 +43,32 @@ CKA(Certified Kubernetes Administrator) 대비용 kubeadm 클러스터를 **직�
 
 ## 구조
 
+세 영역으로 나눈다. 성격이 다르므로 섞지 않는다.
+
+| 영역 | 성격 | 시제 |
+|---|---|---|
+| [`docs/`](docs/) | 설계와 계획 | 앞으로 할 것 |
+| [`notes/`](notes/) | 개념과 참고 자료 | 항상 참인 것 |
+| [`labs/`](labs/) | 실습 결과 | 실제로 한 것 |
+
 ```
-docs/     설계 문서 — 판단과 근거를 남기는 곳
-  00-plan.md            사전 점검 결과와 설계 결정
-  01-network-design.md  네트워크 설계
-  02-roadmap.md         학습 로드맵 Stage 0~7
-notes/    실습 기록과 참고 자료
-  network/    VCN·주소 문제·진단 명령
-  kubernetes/ 컴포넌트 (etcd)
-  infra/      HAProxy, libvirt/KVM
+docs/
+  00-plan.md              사전 점검 결과와 설계 결정
+  01-network-design.md    네트워크 설계
+  02-roadmap.md           학습 로드맵 Stage 0~7
+notes/
+  network/                VCN·주소 문제·진단 명령·WireGuard
+  kubernetes/             컴포넌트 (etcd)
+  infra/                  HAProxy, libvirt/KVM
+labs/
+  stage-NN-주제.md        Stage별 수행 기록
+  incidents/              예기치 않게 겪은 문제
+  drills/                 의도적 고장 → 복구 훈련
 ```
 
 ## 원칙
 
 1. **명령을 붙여넣기 전에 왜 그 값인지 적는다.** 특히 IP 대역과 포트.
-2. **막힌 것은 지우지 않는다.** 실패 기록이 Troubleshooting 학습 자료다.
+2. **막힌 것은 지우지 않는다.** 실패 기록이 Troubleshooting 학습 자료다. 헛짚은 가설도 함께 남긴다.
 3. **자격증명은 커밋하지 않는다.** `.gitignore`를 먼저 확인할 것.
 4. **공개 저장소다.** 실제 IP·호스트명·키는 문서화 전용 값으로 바꿔 적는다.
