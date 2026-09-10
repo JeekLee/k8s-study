@@ -19,6 +19,7 @@
 - [x] VM이 부팅되고 SSH로 들어가진다
 - [x] VM에서 인터넷이 된다 (`apt update` 성공)
 - [x] 스냅샷을 찍고 되돌렸을 때 변경이 사라진다
+- [x] 재부팅 후에도 네트워크와 NAT 규칙이 유지된다
 
 ---
 
@@ -276,6 +277,66 @@ ssh ubuntu@192.168.122.11 'ls ~ && ls /etc/apt'
 
 **완벽하게 되돌아왔다.** `/etc/apt`를 통째로 지웠는데 몇 초 만에 복구됐다.
 
+### 11. 재부팅 검증
+
+패키지 설치 중 커널이 갱신되어 `*** System restart required ***`가 떠 있었다.
+게스트를 먼저 정상 종료하고 호스트를 재부팅했다.
+
+```bash
+virsh shutdown k2-cp1
+virsh list --all
+#  Id   Name     State
+#  -    k2-cp1   shut off
+
+sudo reboot
+```
+
+재접속 후:
+
+```bash
+uname -r
+# 7.0.0-1010-oracle        ← 커널 갱신됨
+
+virsh net-list
+#  Name     State    Autostart   Persistent
+#  k8snet   active   yes         yes        ← 자동으로 떴다
+
+sudo iptables -t nat -L POSTROUTING -n -v | grep 192.168.122
+#     0     0 MASQUERADE  all  --  *  ens3  192.168.122.0/24  0.0.0.0/0
+
+sysctl net.ipv4.ip_forward
+# net.ipv4.ip_forward = 1
+
+virsh list --all
+#  -    k2-cp1   shut off      ← autostart 를 안 걸었으니 정상
+```
+
+**네 가지 모두 통과.** `net-autostart`와 `netfilter-persistent save`가 제대로 먹었다.
+
+> 패킷 카운터가 다시 `0`인 것은 재부팅으로 초기화됐기 때문이다.
+> 규칙 자체는 살아 있다.
+
+VM을 수동으로 올리고 확인:
+
+```bash
+virsh start k2-cp1
+# Domain 'k2-cp1' started
+
+ssh ubuntu@192.168.122.11 'ls ~'
+# ssh: connect to host 192.168.122.11 port 22: Connection refused    ← 아직 부팅 중
+
+# 잠시 후 다시
+ssh ubuntu@192.168.122.11 'ls ~'
+# BEFORE_SNAPSHOT          ← 스냅샷 되돌린 상태가 유지됨
+
+ssh ubuntu@192.168.122.11 'sudo apt-get update'
+# Hit:1 http://security.ubuntu.com/ubuntu noble-security InRelease
+# ...                      ← NAT 여전히 동작
+```
+
+`virsh domifaddr`은 VM이 부팅 중이어도 `.11`을 바로 보여줬다.
+DHCP 예약이라 libvirt가 미리 알고 있기 때문이다.
+
 ---
 
 ## 막힌 것
@@ -294,6 +355,24 @@ error: Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission d
 
 **배운 것** — 문서에 경고가 있었는데도 그냥 지나쳤다. 앞으로 `usermod`을 치면
 반사적으로 재로그인하는 습관을 들일 것.
+
+### VM 시작 직후 SSH `Connection refused`
+
+```
+ssh: connect to host 192.168.122.11 port 22: Connection refused
+```
+
+**증상** — `virsh start` 직후 SSH가 거부됨.
+
+**원인** — 장애가 아니다. VM이 아직 부팅 중이라 `sshd`가 뜨지 않았다.
+`refused`는 "그 주소에 닿았지만 그 포트에 아무도 없다"는 뜻이다
+(닿지 않으면 timeout이 난다 → [`notes/network/diagnosis/02_nc.md`](../notes/network/diagnosis/02_nc.md)).
+
+**해결** — 20~30초 기다린 뒤 재시도. 잠시 후 정상 접속됐다.
+
+**배운 것** — `refused`와 `timeout`은 다른 신호다. `refused`면 경로는 살아 있는 것이니
+네트워크를 의심하기 전에 상대 서비스가 떴는지부터 본다.
+자동화 스크립트에서는 재시도 루프를 넣어야 한다.
 
 ---
 
@@ -324,18 +403,10 @@ VM 6대를 백킹 파일 방식으로 만들어도 된다.
 매우 안정적이다. etcd 피어 지연 관점에서는 문제없는 수준.
 다만 이건 VM→인터넷이고, **Stage 4의 호스트 간 터널 지연은 따로 측정해야 한다.**
 
-### 커널 업그레이드 대기 중
+### 커널 업그레이드 — 재부팅으로 해결
 
-```
-Pending kernel upgrade!
-Running kernel version: 7.0.0-1009-oracle
-The currently running kernel version is not the expected kernel version 7.0.0-1010-oracle.
-*** System restart required ***
-```
-
-패키지 설치 중 커널이 갱신됐다. **아직 재부팅하지 않았다.**
-VM을 더 만들기 전에 재부팅하는 편이 낫고, 그 김에
-`k8snet` 자동 시작과 `iptables-persistent` 규칙이 재부팅 후에도 살아남는지 확인할 수 있다.
+패키지 설치 중 커널이 `7.0.0-1009` → `7.0.0-1010`으로 갱신됐다.
+11절에서 재부팅하며 반영했고, 그 김에 설정 영구성까지 함께 검증했다.
 
 ### `libvirtd`가 `dnsmasq`를 자식으로 띄운다
 
@@ -345,6 +416,7 @@ VM을 더 만들기 전에 재부팅하는 편이 낫고, 그 김에
 
 ## 다음
 
-- [ ] **재부팅 후 검증** — `k8snet` 자동 시작, MASQUERADE 규칙 잔존, VM 자동 시작 여부
+- [x] **재부팅 후 검증** — 네트워크·NAT·포워딩 모두 유지됨
+- [ ] `virsh autostart k2-cp1` — 클러스터 노드는 자동 시작이 편하다
 - [ ] 워커 VM 2대(`k2-w1`, `k2-w2`) 추가 생성 — Stage 3에서 필요
 - [ ] [Stage 2 — 첫 클러스터](../docs/stages/stage-02-first-cluster.md)

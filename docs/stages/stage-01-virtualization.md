@@ -593,6 +593,14 @@ virsh domifaddr k2-cp1
 
 부팅에 30초~1분쯤 걸린다. cloud-init이 계정을 만드는 시간이 필요하다.
 
+> 너무 일찍 붙으면 이렇게 나온다:
+> ```
+> ssh: connect to host 192.168.122.11 port 22: Connection refused
+> ```
+> **장애가 아니다.** `refused`는 "주소에는 닿았지만 그 포트에 아무도 없다"는 뜻으로,
+> `sshd`가 아직 안 뜬 것이다. 20~30초 뒤 다시 시도한다.
+> (닿지 않으면 `refused`가 아니라 timeout이 난다.)
+
 ```bash
 ssh ubuntu@192.168.122.11
 ```
