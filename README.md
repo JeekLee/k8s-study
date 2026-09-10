@@ -30,6 +30,7 @@ CKA(Certified Kubernetes Administrator) 대비용 kubeadm 클러스터를 **직�
 ## 진행 상황
 
 - [ ] **Phase 0** — 네트워크 설계 및 노드 간 연결 → [docs/01-network-design.md](docs/01-network-design.md)
+  - 🔍 연결 방식 **검토 중** (WireGuard / VCN 재생성 / 단일 노드+VM) → [검토 메모](notes/network/reference/wireguard.md#검토-메모)
 - [ ] **Phase 1** — 컨테이너 런타임 · kubeadm 설치
 - [ ] **Phase 2** — 클러스터 초기화 (`kubeadm init` / `join`)
 - [ ] **Phase 3** — CNI 구성 (Calico) 및 통신 검증

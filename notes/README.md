@@ -7,15 +7,25 @@
 ```
 notes/
 ├── YYYY-MM-DD-주제.md      그날 겪은 문제 하나 (사건 기록)
-└── <영역>/                  반복해서 찾아볼 참고 자료
-    ├── README.md            해당 영역의 절차와 인덱스
-    └── <분류>/
-        └── NN_주제.md       번호는 실제 사용 순서를 뜻한다
+├── network/                 노드 간 통신
+│   ├── concepts/            개념 — 왜 이런 상황인가
+│   ├── diagnosis/           진단 명령 (번호 = 확인 순서)
+│   └── reference/           검토 중인 기술 (채택 확정 아님)
+└── kubernetes/              컴포넌트별 정리
 ```
 
 | 영역 | 내용 |
 |---|---|
-| [`network/`](network/) | 노드 간 통신 · 진단 명령 |
+| [`network/`](network/) | VCN, 노드 주소 문제, 진단 명령, 터널 후보 검토 |
+| [`kubernetes/`](kubernetes/) | etcd 등 컴포넌트 |
+
+## 지금 읽어야 할 것
+
+Phase 0을 이해하려면 이 순서:
+
+1. [`network/concepts/01_vcn-vpc.md`](network/concepts/01_vcn-vpc.md) — 두 노드가 왜 못 만나는가
+2. [`network/concepts/02_node-addressing.md`](network/concepts/02_node-addressing.md) — **포트를 다 열어도 안 되는 이유**
+3. [`network/reference/wireguard.md`](network/reference/wireguard.md) — 해결 후보 (검토 중)
 
 ## 사건 기록
 

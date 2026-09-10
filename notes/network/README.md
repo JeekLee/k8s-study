@@ -1,6 +1,25 @@
 # 네트워크 노트
 
-노드 간 통신 관련 기록. 개별 명령 사용법은 [`diagnosis/`](diagnosis/)에 명령별로 나눠 정리한다.
+노드 간 통신 관련 기록.
+
+| 디렉터리 | 내용 |
+|---|---|
+| [`concepts/`](concepts/) | 개념 정리 — 왜 이런 상황이 벌어졌는가 |
+| [`diagnosis/`](diagnosis/) | 진단 명령 사용법 |
+| [`reference/`](reference/) | 검토 중인 기술 자료 (채택 확정 아님) |
+
+## 개념
+
+| 문서 | 내용 |
+|---|---|
+| [`01_vcn-vpc.md`](concepts/01_vcn-vpc.md) | VCN/VPC란 무엇인가, CIDR 겹침이 왜 치명적인가 |
+| [`02_node-addressing.md`](concepts/02_node-addressing.md) | **포트를 다 열어도 안 되는 이유.** Phase 0 판단의 근거 |
+
+## 검토 자료
+
+| 문서 | 상태 |
+|---|---|
+| [`wireguard.md`](reference/wireguard.md) | 🔍 검토 중 — 주소 문제 해결 후보 |
 
 ## 진단 원칙 — 아래에서 위로 좁힌다
 
@@ -84,4 +103,5 @@ sudo tcpdump -ni ens3 udp port 51820
 echo hello | nc -u -w2 203.0.113.11 51820
 ```
 
-3·4단계가 양방향 모두 통과하면 WireGuard를 올릴 준비가 끝난 것이다.
+3·4단계가 양방향 모두 통과하면 오버레이 터널을 올릴 수 있는 상태다.
+다만 터널 방식 채택은 아직 확정이 아니다 → [`reference/wireguard.md`](reference/wireguard.md) 검토 메모.

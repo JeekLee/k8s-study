@@ -18,7 +18,7 @@
 
 | Phase | 내용 | 산출물 |
 |---|---|---|
-| 0 | 네트워크 설계 — 노드 간 통신 확보 | `01-network-design.md` |
+| 0 | 네트워크 설계 — 노드 간 통신 확보 🔍 *방식 검토 중* | `01-network-design.md` |
 | 1 | containerd + kubeadm 설치 (양쪽 공통) | |
 | 2 | `kubeadm init` / `join` | |
 | 3 | Calico 구성 및 파드 간 통신 검증 | |
@@ -46,6 +46,7 @@
 | control plane 수 | **1대** | etcd 쿼럼 `(N/2)+1` — 2대는 장애 허용 0. 단일보다 나쁘다. HA는 3대부터 |
 | control plane taint | **유지** | 제거하면 편하지만, 남겨둬야 toleration·affinity 실습 재료가 된다 |
 | CNI | **Calico** | Flannel은 NetworkPolicy 미지원. CKA 20% 영역이 통째로 빠진다 |
+| 노드 간 연결 | 🔍 **미결** | WireGuard / 한쪽 VCN 재생성 / k8s-2 단독+VM 중 검토 중.<br>포트 전체 개방은 [주소 문제](../notes/network/concepts/02_node-addressing.md)로 제외됨 |
 | 버전 | v1.35 고정 + `apt-mark hold` | 나중에 `kubeadm upgrade`를 *의도적으로* 연습하기 위해 |
 
 ## 미리 알고 갈 함정
