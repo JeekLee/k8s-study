@@ -6,7 +6,7 @@
 |---|---|
 | [`concepts/`](concepts/) | 개념 정리 — 왜 이런 상황이 벌어졌는가 |
 | [`diagnosis/`](diagnosis/) | 진단 명령 사용법 |
-| [`reference/`](reference/) | 검토 중인 기술 자료 (채택 확정 아님) |
+| [`reference/`](reference/) | 채택한 기술 자료와 판단 근거 |
 
 ## 개념
 
@@ -15,14 +15,15 @@
 | [`01_vcn-vpc.md`](concepts/01_vcn-vpc.md) | VCN/VPC란 무엇인가, CIDR 겹침이 왜 치명적인가 |
 | [`02_node-addressing.md`](concepts/02_node-addressing.md) | **포트를 다 열어도 안 되는 이유.** Phase 0 판단의 근거 |
 
-## 검토 자료 → [`reference/`](reference/)
+## 기술 자료 → [`reference/`](reference/)
 
-Phase 0 연결 방식이 아직 미결이다. 후보 비교는 [`reference/README.md`](reference/README.md).
+Phase 0 연결 방식은 **결정됐다** — 호스트 간 WireGuard + VM 서브넷 라우팅으로 6노드 구성.
+판단 근거와 대안 비교는 [`reference/README.md`](reference/README.md).
 
-| 문서 | 접근 | 상태 |
+| 문서 | 내용 | 상태 |
 |---|---|---|
-| [`wireguard.md`](reference/wireguard.md) | 깨진 환경을 고쳐 쓴다 | 🔍 검토 중 |
-| [`nested-vm.md`](reference/nested-vm.md) | 안 깨진 환경을 새로 만든다 | 🔍 검토 중 |
+| [`wireguard.md`](reference/wireguard.md) | 터널 개념, Cryptokey Routing, 포트 51820 | ✅ 채택 |
+| [`nested-vm.md`](reference/nested-vm.md) | KVM 중첩 가상화, 자원 배분, 스냅샷 | ✅ 채택 |
 
 ## 진단 원칙 — 아래에서 위로 좁힌다
 

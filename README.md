@@ -19,29 +19,39 @@ CKA(Certified Kubernetes Administrator) 대비용 kubeadm 클러스터를 **직�
 
 | | k8s-1 | k8s-2 |
 |---|---|---|
-| 역할 | control plane | worker |
+| 역할 | 하이퍼바이저 (VM 3대) | 하이퍼바이저 (VM 3대) |
 | CPU / RAM | 16 vCPU / 125 GiB | 32 vCPU / 251 GiB |
 | 디스크 | 3.8 TB | 3.8 TB |
 | OS / 커널 | Ubuntu 26.04 LTS / 7.0.0-1009-oracle | 동일 |
 | 클라우드 | OCI (KVM) | OCI (KVM) |
 
+최종 구성: **6노드** (control plane 3 + worker 3). 두 호스트는 클러스터에 참여하지 않고 VM만 띄운다.
 버전 고정: **Kubernetes v1.35** (CKA 시험 기준) · containerd 2.2.2 · Calico
 
 ## 진행 상황
 
-- [ ] **Phase 0** — 네트워크 설계 및 노드 간 연결 → [docs/01-network-design.md](docs/01-network-design.md)
-  - 🔍 연결 방식 **검토 중** (WireGuard / VCN 재생성 / 단일 노드+VM) → [검토 메모](notes/network/reference/wireguard.md#검토-메모)
-- [ ] **Phase 1** — 컨테이너 런타임 · kubeadm 설치
-- [ ] **Phase 2** — 클러스터 초기화 (`kubeadm init` / `join`)
-- [ ] **Phase 3** — CNI 구성 (Calico) 및 통신 검증
-- [ ] **Phase 4** — 실습 환경 확장 (중첩 VM으로 3노드 HA)
-- [ ] **Phase 5** — CKA 영역별 실습 및 고장/복구 훈련
+전체 계획은 [docs/02-roadmap.md](docs/02-roadmap.md).
+
+- [x] **Stage 0** — 기반 개념과 진단 도구
+- [ ] **Stage 1** — 가상화 기반 (libvirt, 스냅샷) ← **다음**
+- [ ] **Stage 2** — 첫 클러스터 (단일 노드)
+- [ ] **Stage 3** — 다중 노드 (호스트 내부)
+- [ ] **Stage 4** — 크로스 호스트 라우팅 (WireGuard)
+- [ ] **Stage 5** — HA control plane (6노드 완성)
+- [ ] **Stage 6** — CKA 영역별 실습
+- [ ] **Stage 7** — 시험 대비 마무리
 
 ## 구조
 
 ```
 docs/     설계 문서 — 판단과 근거를 남기는 곳
-notes/    실습 기록 — 겪은 문제와 해결 과정
+  00-plan.md            사전 점검 결과와 설계 결정
+  01-network-design.md  네트워크 설계
+  02-roadmap.md         학습 로드맵 Stage 0~7
+notes/    실습 기록과 참고 자료
+  network/    VCN·주소 문제·진단 명령
+  kubernetes/ 컴포넌트 (etcd)
+  infra/      HAProxy, libvirt/KVM
 ```
 
 ## 원칙

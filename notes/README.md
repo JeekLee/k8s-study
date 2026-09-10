@@ -10,7 +10,7 @@ notes/
 ├── network/                 노드 간 통신
 │   ├── concepts/            개념 — 왜 이런 상황인가
 │   ├── diagnosis/           진단 명령 (번호 = 확인 순서)
-│   └── reference/           검토 중인 기술 (채택 확정 아님)
+│   └── reference/           채택한 기술과 판단 근거
 ├── kubernetes/              컴포넌트별 정리
 └── infra/                   쿠버네티스는 아니지만 필요한 것들
 ```
@@ -23,11 +23,12 @@ notes/
 
 ## 지금 읽어야 할 것
 
-Phase 0을 이해하려면 이 순서:
+전체 계획은 [`docs/02-roadmap.md`](../docs/02-roadmap.md).
+Stage 0에서 정리한 개념은 이 순서로:
 
 1. [`network/concepts/01_vcn-vpc.md`](network/concepts/01_vcn-vpc.md) — 두 노드가 왜 못 만나는가
 2. [`network/concepts/02_node-addressing.md`](network/concepts/02_node-addressing.md) — **포트를 다 열어도 안 되는 이유**
-3. [`network/reference/`](network/reference/) — 해결 후보 비교 (검토 중)
+3. [`network/reference/`](network/reference/) — 채택한 방식과 그 근거
 
 ## 사건 기록
 
