@@ -14,6 +14,7 @@
 |---|---|
 | [`01_vcn-vpc.md`](concepts/01_vcn-vpc.md) | VCN/VPC란 무엇인가, CIDR 겹침이 왜 치명적인가 |
 | [`02_node-addressing.md`](concepts/02_node-addressing.md) | **포트를 다 열어도 안 되는 이유.** Phase 0 판단의 근거 |
+| [`03_interfaces.md`](concepts/03_interfaces.md) | `ip addr` 읽는 법. lo/ens3/virbr/vnet/wg0, MTU 계층 |
 
 ## 기술 자료 → [`reference/`](reference/)
 

@@ -117,6 +117,11 @@ MAC은 libvirt 네트워크 XML의 DHCP 예약과 **반드시 일치**해야 한
 (`wg0` 1420 → VXLAN −50). 맞추지 않으면 **작은 요청은 되는데 큰 응답만 멈추는**
 진단하기 어려운 장애가 난다.
 
+여기에 더해, 이 환경의 `ens3`는 **MTU 9000**(점보 프레임)이라
+`wg-quick`이 MTU를 자동 계산하면 8920을 잡는다. 공용 인터넷 경로는 1500이므로
+WireGuard 설정에 **`MTU = 1420`을 명시**해야 한다.
+→ [`notes/network/concepts/03_interfaces.md`](../notes/network/concepts/03_interfaces.md)
+
 ## 진행 원칙
 
 1. **완료 기준을 통과해야 다음 단계로.** Stage 2에서 대충 넘긴 것은 Stage 4에서 두 배로 돌아온다.
