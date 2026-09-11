@@ -119,7 +119,24 @@ Allocatable:  memory: 8028376Ki      ← 약 100 MiB 적다
 | `--kube-reserved` | kubelet·런타임 몫 |
 | `--eviction-hard` | 이 선을 넘으면 파드를 축출 |
 
-## QoS 클래스 — 조합이 등급을 만든다
+## QoS 클래스 — 축출 순서를 정하는 등급
+
+### 왜 등급이 필요한가
+
+배치가 끝난 뒤 **노드에서 실제로 메모리가 바닥나면** 누군가는 죽어야 한다.
+CPU 는 나눠 쓰면 그만이지만 메모리는 이미 할당한 것을 뺏을 수 없다.
+
+kubelet 은 노드를 감시하다 위험선(`--eviction-hard`)을 넘으면
+`MemoryPressure` 를 선언하고 **파드를 골라 쫓아낸다.**
+이것이 **축출(Eviction)** 이다 — 컨테이너 재시작이 아니라 파드가 노드에서 나간다.
+
+```bash
+kubectl get node <노드> -o jsonpath='{range .status.conditions[*]}{.type}{"="}{.status}{"\n"}{end}'
+```
+
+**문제는 순서다.** 그 순서를 정하는 것이 QoS 클래스다.
+
+### 등급은 자동으로 정해진다
 
 **직접 지정하지 않는다.** `requests` 와 `limits` 의 관계로 자동 결정된다.
 
@@ -140,6 +157,15 @@ cgroup 경로에도 드러난다.
 /sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/...
 /sys/fs/cgroup/kubepods.slice/...                        ← Guaranteed
 ```
+
+**순서에 이유가 있다.**
+
+- `Guaranteed` 는 "정확히 이만큼만 쓰겠다"고 선언하고 지키는 파드다.
+  노드가 부족해진 것이 이 파드 탓이 아니므로 **보호한다.**
+- `BestEffort` 는 아무 약속도 하지 않았다. 얼마든지 써도 되는 대신
+  **문제가 생기면 먼저 정리된다.**
+
+> 선언하지 않는다는 것은 자유를 얻는 대신 보호를 포기하는 것이다.
 
 **DB 는 `Guaranteed`, 배치는 `BestEffort`** 로 두는 것이 기본 전략이다.
 

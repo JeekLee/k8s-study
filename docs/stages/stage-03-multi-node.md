@@ -410,24 +410,85 @@ kubectl describe node k2-w1 | grep -A6 "Allocated resources"
 3. **3개가 2:1 로 나뉜다** — 첫 배치 뒤 그 노드의 여유가 줄어 다음은 반대쪽으로 간다.
    `requests` 가 있으니 이번에는 자원 점수가 실제로 작동한다
 
-#### QoS 클래스 — 조합이 등급을 만든다
+#### 노드 메모리가 진짜로 부족해지면 — 누구를 죽일 것인가
+
+지금까지는 **스케줄러**가 파드를 어디에 놓을지 정하는 이야기였다.
+그런데 배치가 끝난 뒤 **노드에서 실제로 메모리가 바닥나면** 어떻게 될까.
+
+CPU 는 나눠 쓰면 된다. 느려질 뿐이다.
+**메모리는 나눠 쓸 수 없다.** 이미 할당한 것을 뺏을 방법이 없으니
+누군가는 죽어야 한다.
+
+그래서 kubelet 은 노드 메모리를 감시하다가 위험선을 넘으면
+`MemoryPressure` 를 선언하고 **파드를 골라 쫓아낸다.**
+이것이 **축출(Eviction)** 이다 — 컨테이너 재시작이 아니라 파드가 노드에서 나간다.
 
 ```bash
-kubectl get pod -l app=web -o jsonpath='{.items[0].status.qosClass}'    # BestEffort
-kubectl get pod -l app=sized -o jsonpath='{.items[0].status.qosClass}'  # Burstable
+kubectl get node k2-w1 -o jsonpath='{range .status.conditions[*]}{.type}{"="}{.status}{"\n"}{end}'
+# MemoryPressure=False       ← 지금은 여유가 있다
+# DiskPressure=False
 ```
 
-| 클래스 | 조건 | 메모리 부족 시 |
+**문제는 순서다. 누구부터 쫓아낼 것인가?**
+
+#### QoS 클래스 — 축출 순서를 정하는 등급
+
+쿠버네티스는 파드마다 **QoS(Quality of Service, 서비스 품질) 클래스**를 매긴다.
+**직접 지정하는 것이 아니라 `requests` 와 `limits` 의 관계로 자동 결정된다.**
+
+| 클래스 | 조건 | 축출 순서 |
 |---|---|---|
-| `Guaranteed` | requests == limits (전부) | **가장 나중에** 축출 |
-| `Burstable` | requests < limits | 중간 |
-| **`BestEffort`** | **아무것도 없음** | **가장 먼저** 축출 |
+| **`Guaranteed`** | 모든 컨테이너가 **requests == limits** (cpu·memory 둘 다) | **가장 나중** |
+| **`Burstable`** | requests 는 있는데 limits 와 다름 | 중간 |
+| **`BestEffort`** | **아무것도 선언하지 않음** | **가장 먼저** |
 
-실측에서 cgroup 경로가 `kubepods-besteffort.slice` 였던 것이 그 증거다.
-**지금 `web` 파드들은 가장 먼저 쫓겨나는 등급**이다.
+**순서에 이유가 있다.**
 
-> 자세한 내용은 [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md).
-> QoS 를 실제로 다루는 것은 [Stage 7](stage-07-scheduling-ops.md) 이다.
+- `Guaranteed` 는 "정확히 이만큼만 쓰겠다"고 선언하고 그 약속을 지키는 파드다.
+  노드가 부족해진 것은 이 파드 탓이 아니므로 **보호한다.**
+- `BestEffort` 는 아무 약속도 하지 않았다. 얼마든지 써도 되는 대신
+  **문제가 생기면 먼저 정리된다.**
+
+> 선언하지 않는다는 것은 자유를 얻는 대신 보호를 포기하는 것이다.
+
+#### 지금 내 클러스터에서 확인
+
+```bash
+kubectl get pods -o custom-columns='POD:.metadata.name,QOS:.status.qosClass'
+```
+
+```
+web-68d995574f-5rrhc    BestEffort      ← requests·limits 둘 다 없음
+web-68d995574f-7pc76    BestEffort
+...
+sized-c87855d76-4d47g   Burstable       ← requests 만 있음
+sized-c87855d76-fd6zm   Burstable
+```
+
+`kubectl create deployment` 로 만든 `web` 6개는 전부 **`BestEffort`** 다.
+**노드 메모리가 부족해지면 가장 먼저 쫓겨난다.**
+
+`sized` 는 `requests` 만 주고 `limits` 는 안 줬으므로 **`Burstable`** 이다.
+`Guaranteed` 가 되려면 `limits` 를 `requests` 와 **같은 값**으로 맞춰야 한다.
+
+#### cgroup 경로가 증거다
+
+QoS 는 kubelet 이 만드는 cgroup 계층에 그대로 반영된다.
+
+```bash
+# 워커에서
+ls /sys/fs/cgroup/kubepods.slice/
+# kubepods-besteffort.slice    ← BestEffort 파드들
+# kubepods-burstable.slice     ← Burstable 파드들
+# kubepods-pod<UID>.slice      ← Guaranteed 는 최상위에 바로 놓인다
+```
+
+앞서 메모리를 실측할 때 경로가 `kubepods-besteffort.slice` 였던 것은
+**그 파드들이 BestEffort 등급이기 때문**이다.
+
+> QoS 를 실제로 활용하는 것 — DB 는 `Guaranteed`, 배치는 `BestEffort` 로 두어
+> 축출 순서를 설계하는 것 — 은 [Stage 7](stage-07-scheduling-ops.md) 에서 다룬다.
+> 여기서는 **`requests` 를 적고 안 적고가 등급까지 바꾼다**는 것만 확인하면 된다.
 
 ### 4-4. 자원이 모자라면 `Pending`
 
