@@ -471,6 +471,15 @@ sized-c87855d76-fd6zm   Burstable
 `sized` 는 `requests` 만 주고 `limits` 는 안 줬으므로 **`Burstable`** 이다.
 `Guaranteed` 가 되려면 `limits` 를 `requests` 와 **같은 값**으로 맞춰야 한다.
 
+> 직접 확인해보면 의외인 것이 두 가지 있다.
+>
+> - **`limits` 만 줘도 `Guaranteed` 가 된다** — API 서버가 `requests` 를
+>   `limits` 값으로 채워주기 때문이다. 반대는 성립하지 않는다
+> - **`ephemeral-storage` 는 QoS 에 영향이 없다** — 계산은 `cpu` 와 `memory` 만 본다
+>
+> 그리고 **파드 단위**라 컨테이너 하나만 어겨도 전체가 떨어진다.
+> 실측 결과는 [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md).
+
 #### cgroup 경로가 증거다
 
 QoS 는 kubelet 이 만드는 cgroup 계층에 그대로 반영된다.

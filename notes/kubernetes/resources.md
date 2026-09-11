@@ -150,7 +150,70 @@ kubectl get node <노드> -o jsonpath='{range .status.conditions[*]}{.type}{"="}
 kubectl get pod <파드> -o jsonpath='{.status.qosClass}'
 ```
 
-cgroup 경로에도 드러난다.
+**내가 지정하는 필드가 아니다.** API 서버가 계산해 `status.qosClass` 에 넣는다.
+
+### 실측으로 확인한 규칙
+
+파드를 만들어 직접 확인한 결과 (2026-09-11):
+
+| 설정 | QoS | |
+|---|---|---|
+| `limits` **만** 지정 | **`Guaranteed`** | ← 의외 |
+| `requests` == `limits` 명시 | `Guaranteed` | |
+| 컨테이너 2개 중 **하나만** 설정 | `Burstable` | |
+| cpu 만 같고 memory 는 다름 | `Burstable` | |
+| **`ephemeral-storage` 만** 선언 | **`BestEffort`** | ← 의외 |
+
+#### `limits` 만 줘도 `Guaranteed` 가 된다
+
+```yaml
+resources:
+  limits: { cpu: 100m, memory: 64Mi }    # requests 를 안 적었다
+```
+
+```bash
+kubectl get pod <파드> -o jsonpath='{.spec.containers[0].resources}'
+```
+```json
+{"limits":{"cpu":"100m","memory":"64Mi"},
+ "requests":{"cpu":"100m","memory":"64Mi"}}    ← 채워져 있다
+```
+
+**API 서버가 `requests` 를 `limits` 값으로 자동으로 채운다.**
+결과적으로 같아지므로 `Guaranteed` 가 된다.
+
+**반대는 성립하지 않는다.** `requests` 만 주면 `limits` 는 비어 있어 `Burstable` 이다.
+
+#### `ephemeral-storage` 는 QoS 에 영향이 없다
+
+`requests` 를 분명히 선언했는데도 `BestEffort` 였다.
+
+**QoS 계산은 `cpu` 와 `memory` 만 본다.**
+`ephemeral-storage` 와 `hugepages` 는 자원으로 관리되지만 등급에는 반영되지 않는다.
+
+#### 파드 단위다 — 컨테이너 하나가 전체를 떨어뜨린다
+
+```yaml
+containers:
+  - name: app                                  # requests == limits
+    resources: { requests: {...}, limits: {...} }
+  - name: sidecar                              # 아무것도 없음
+```
+→ 파드 전체가 **`Burstable`**
+
+> **사이드카를 붙일 때 자주 걸린다.** 앱 컨테이너는 잘 맞춰놓고
+> 사이드카에 아무것도 안 적어서 `Guaranteed` 가 깨지는 식이다.
+> 로그 수집기·프록시를 주입하는 메시 환경에서 특히 그렇다.
+
+`initContainer` 도 계산에 들어간다 —
+파드의 유효 requests 는 `max(일반 컨테이너 합, initContainer 최댓값)` 이다.
+
+#### 바꿀 수 없다
+
+파드 생성 시점에 정해져 `status.qosClass` 에 박힌다.
+등급을 바꾸려면 **파드를 다시 만들어야 한다.**
+
+### cgroup 경로에도 드러난다
 
 ```
 /sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice/...
