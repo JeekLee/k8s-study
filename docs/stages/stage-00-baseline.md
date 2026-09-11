@@ -5,6 +5,34 @@
 | 상태 | ✅ 완료 (2026-09-10) |
 | 기록 | [`labs/stage-00-baseline.md`](../../labs/stage-00-baseline.md) |
 
+## 확인한 상태
+
+```mermaid
+graph TB
+    subgraph A["VCN-A &nbsp;·&nbsp; 10.0.0.0/24"]
+        H1["<b>k8s-1</b><br/>사설 10.0.0.155<br/>공인 203.0.113.11"]
+    end
+    subgraph B["VCN-B &nbsp;·&nbsp; 10.0.0.0/24 &nbsp;— <b>같은 대역</b>"]
+        H2["<b>k8s-2</b><br/>사설 10.0.0.169<br/>공인 198.51.100.22"]
+    end
+    H1 -.->|"사설 IP · <b>100% loss</b>"| H2
+    H1 ==>|"공인 IP · tcp/22 만 통과"| H2
+
+    style A fill:#f8e3df,stroke:#a63525
+    style B fill:#f8e3df,stroke:#a63525
+    style H1 fill:#fff,stroke:#a63525
+    style H2 fill:#fff,stroke:#a63525
+```
+
+**두 호스트가 서로 다른 VCN에 있는데 사설 대역이 같다.**
+사설 IP로는 영원히 닿지 않고, 공인 IP로도 `tcp/22` 하나만 열려 있다.
+
+여기서 끝나지 않는다 — 포트를 다 열어도 클러스터는 성립하지 않는다.
+쿠버네티스가 **"노드가 스스로 등록한 주소로 다른 노드가 접속한다"**를 전제하는데,
+등록 가능한 주소(사설)는 닿지 않고 닿는 주소(공인)는 인터페이스에 없기 때문이다.
+
+→ [`notes/network/concepts/02_node-addressing.md`](../../notes/network/concepts/02_node-addressing.md)
+
 ## 이 단계에서 한 일
 
 클러스터를 만들기 전에 **"왜 그냥은 안 되는가"** 를 먼저 이해했다.

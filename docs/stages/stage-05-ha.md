@@ -13,6 +13,54 @@
 
 control plane 3대로 쿼럼을 만들고 **직접 깨뜨려본다.**
 
+## 이 단계를 마치면
+
+```mermaid
+graph TB
+    subgraph H1["k8s-1 — 장애 도메인 1"]
+        direction LR
+        C1["<b>k1-cp1</b><br/>etcd"]
+        C2["<b>k1-cp2</b><br/>etcd"]
+        V1["k1-w1"]
+    end
+    subgraph H2["k8s-2 — 장애 도메인 2"]
+        direction LR
+        C3["<b>k2-cp1</b><br/>etcd"]
+        V2["k2-w1"]
+        V3["k2-w2"]
+    end
+    HAP["<b>HAProxy</b> · 192.168.122.1:6443<br/><i>백엔드 3개</i>"]
+    HAP ==> C1
+    HAP ==> C2
+    HAP ==> C3
+    C1 <-.->|etcd peer| C2
+    C2 <-.->|"etcd peer<br/>터널 경유"| C3
+
+    style H1 fill:#eef4fa,stroke:#25628f
+    style H2 fill:#eef4fa,stroke:#25628f
+    style C1 fill:#dff0ea,stroke:#1b6e58
+    style C2 fill:#dff0ea,stroke:#1b6e58
+    style C3 fill:#dff0ea,stroke:#1b6e58
+    style HAP fill:#f7edd8,stroke:#96650b
+```
+
+**6노드 · control plane 3대 · etcd 쿼럼 3.**
+
+| 죽는 쪽 | 남는 etcd | 쿼럼(2 필요) | 결과 |
+|---|---:|---|---|
+| k8s-2 (CP 1대) | 2 | ✅ | 생존 |
+| **k8s-1 (CP 2대)** | 1 | ❌ | **정지** |
+
+**HA 는 절반만 된다.** 호스트가 2개라 3멤버를 2+1로 나눌 수밖에 없다.
+진짜 HA는 장애 도메인이 3개여야 한다 — **이 한계를 직접 겪는 것이 쿼럼을 이해하는 가장 좋은 방법이다.**
+
+| 추가된 것 | 어디에 |
+|---|---|
+| control plane 합류 (`--control-plane`) | k1-cp1, k1-cp2 |
+| etcd 멤버 2개 | 위 두 노드 |
+| HAProxy 백엔드 2개 추가 | 호스트 (k8s-2) |
+| 스냅샷 `stage5-done` | VM 6대 |
+
 ## 완료 기준
 
 - [ ] 6노드가 `Ready`

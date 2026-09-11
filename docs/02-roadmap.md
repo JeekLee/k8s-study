@@ -15,6 +15,39 @@
 | 버전 | Kubernetes v1.35 · containerd 2.2.2 · Calico |
 | 예상 기간 | 6–10주 (병행 학습 기준) |
 
+## 최종 구성
+
+```mermaid
+graph TB
+    subgraph H1["k8s-1 호스트 · 16 vCPU / 125 GiB"]
+        direction LR
+        C1["<b>k1-cp1</b> · .121.11<br/>control plane"]
+        C2["<b>k1-cp2</b> · .121.12<br/>control plane"]
+        V1["k1-w1 · .121.21<br/>worker"]
+    end
+    subgraph H2["k8s-2 호스트 · 32 vCPU / 251 GiB"]
+        direction LR
+        C3["<b>k2-cp1</b> · .122.11<br/>control plane"]
+        V2["k2-w1 · .122.21<br/>worker"]
+        V3["k2-w2 · .122.22<br/>worker"]
+    end
+    HAP["<b>HAProxy</b> · 192.168.122.1:6443"]
+    H1 <==>|"WireGuard · UDP 51820"| H2
+    HAP -.-> C1
+    HAP -.-> C2
+    HAP -.-> C3
+
+    style H1 fill:#eef4fa,stroke:#25628f
+    style H2 fill:#eef4fa,stroke:#25628f
+    style C1 fill:#dff0ea,stroke:#1b6e58
+    style C2 fill:#dff0ea,stroke:#1b6e58
+    style C3 fill:#dff0ea,stroke:#1b6e58
+    style HAP fill:#f7edd8,stroke:#96650b
+```
+
+**6노드** — control plane 3 + worker 3.
+두 호스트는 하이퍼바이저 역할만 하고 **클러스터에 참여하지 않는다.**
+
 ## 단계
 
 | Stage | 내용 | 소요 | 상태 |

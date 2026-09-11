@@ -17,6 +17,62 @@
 핵심: **VM들은 터널의 존재를 모른다.** 호스트끼리만 연결하고
 각자의 VM 대역을 서로에게 라우팅해준다.
 
+## 이 단계를 마치면
+
+```mermaid
+graph TB
+    subgraph H1["k8s-1 호스트 — 하이퍼바이저"]
+        direction TB
+        subgraph N1["virbr1 · <b>192.168.121</b>.0/24"]
+            direction LR
+            C1["k1-cp1 · .11"]
+            C2["k1-cp2 · .12"]
+            V1["k1-w1 · .21"]
+        end
+        WG1["wg0 · 10.10.0.1"]
+    end
+    subgraph H2["k8s-2 호스트 — 하이퍼바이저"]
+        direction TB
+        HAP["<b>HAProxy</b><br/>192.168.122.1:6443"]
+        subgraph N2["virbr1 · <b>192.168.122</b>.0/24"]
+            direction LR
+            C3["k2-cp1 · .11"]
+            V2["k2-w1 · .21"]
+            V3["k2-w2 · .22"]
+        end
+        WG2["wg0 · 10.10.0.2"]
+    end
+    N1 -.->|라우팅| WG1
+    N2 -.->|라우팅| WG2
+    WG1 <==>|"UDP 51820 · 암호화 터널<br/>공용 인터넷 경유"| WG2
+
+    style H1 fill:#eef4fa,stroke:#25628f
+    style H2 fill:#eef4fa,stroke:#25628f
+    style N1 fill:#fff,stroke:#8aa7bd,stroke-dasharray: 4 3
+    style N2 fill:#fff,stroke:#8aa7bd,stroke-dasharray: 4 3
+    style WG1 fill:#e3edf5,stroke:#25628f
+    style WG2 fill:#e3edf5,stroke:#25628f
+    style HAP fill:#f7edd8,stroke:#96650b
+```
+
+**두 호스트의 VM이 하나의 사설망처럼 통신한다.**
+
+핵심은 **VM들이 터널의 존재를 모른다**는 것이다.
+`k1-cp1`은 그냥 `192.168.122.21`로 보내고, 호스트가 라우터로서 터널에 태운다.
+그래서 VM 쪽 설정은 Stage 3과 똑같다.
+
+| 추가된 것 | 어디에 |
+|---|---|
+| OCI 보안 목록 `udp/51820` (양쪽 VCN) | 클라우드 |
+| WireGuard 터널 (`wg0`, `MTU 1420`) | 호스트 2대 |
+| `AllowedIPs`에 상대 VM 대역 | 호스트 2대 |
+| `FORWARD` 규칙 (`virbr1` ↔ `wg0`) | 호스트 2대 |
+| libvirt + VM 3대 (`192.168.121.x`) | k8s-1 |
+| 클러스터 합류 | k1-* 3대 |
+
+> ⚠️ `wg0`의 MTU를 **명시**해야 한다. 이 환경의 `ens3`는 9000이라
+> `wg-quick`이 자동 계산하면 8920을 잡는데, 공용 인터넷 경로는 1500이다.
+
 ## 완료 기준
 
 - [ ] `k1-cp1`(192.168.121.11)에서 `k2-w1`(192.168.122.21)로 ping
