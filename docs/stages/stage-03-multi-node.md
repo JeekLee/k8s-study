@@ -15,6 +15,46 @@
 **스케줄러가 어떻게 배치를 결정하는지 관찰하는 것이 핵심**이고,
 이것이 CKA Workloads & Scheduling(배점 15%)의 실습이 된다.
 
+## 이 단계를 마치면
+
+```mermaid
+graph TB
+    subgraph HOST["k8s-2 호스트 — 하이퍼바이저 (쿠버네티스 없음)"]
+        direction TB
+        HAP["<b>HAProxy</b><br/>192.168.122.1:6443"]
+        subgraph VMS["virbr1 · 192.168.122.0/24"]
+            direction LR
+            CP["<b>k2-cp1</b> · .11<br/>control plane<br/><i>taint: NoSchedule</i>"]
+            W1["<b>k2-w1</b> · .21<br/>worker<br/><i>파드 배치</i>"]
+            W2["<b>k2-w2</b> · .22<br/>worker<br/><i>파드 배치</i>"]
+        end
+    end
+    CP -.->|kubelet| HAP
+    W1 -.->|kubelet| HAP
+    W2 -.->|kubelet| HAP
+    HAP ==>|proxy| CP
+
+    style HOST fill:#eef4fa,stroke:#25628f
+    style VMS fill:#fff,stroke:#8aa7bd,stroke-dasharray: 4 3
+    style CP fill:#dff0ea,stroke:#1b6e58
+    style W1 fill:#dff0ea,stroke:#1b6e58
+    style W2 fill:#dff0ea,stroke:#1b6e58
+    style HAP fill:#f7edd8,stroke:#96650b
+```
+
+**3노드 클러스터.** 파드가 워커에 배치되고, 노드를 비우면 다른 노드로 옮겨간다.
+
+세 노드의 kubelet이 **모두 HAProxy를 거쳐** apiserver에 접속한다.
+호스트가 하나뿐이라 **장애 도메인도 하나**다 — Stage 4에서 k8s-1이 합류하며 둘이 된다.
+
+| 추가된 것 | 어디에 |
+|---|---|
+| containerd · kubeadm · kubelet | k2-w1, k2-w2 |
+| 클러스터 합류 (`kubeadm join`) | k2-w1, k2-w2 |
+| `calico-node` (DaemonSet) 자동 배포 | 새 노드 |
+| `worker` 역할 라벨 | k2-w1, k2-w2 |
+| 스냅샷 `stage3-done` | VM 3대 |
+
 ## 완료 기준
 
 - [ ] 3노드가 모두 `Ready`

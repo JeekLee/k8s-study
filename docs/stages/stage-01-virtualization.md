@@ -16,6 +16,37 @@
 Stage 6의 고장/복구 훈련(CKA 배점 30%)이 전부 여기 기대고 있다.
 부수는 데 드는 비용이 0이 되어야 훈련을 반복하게 된다.
 
+## 이 단계를 마치면
+
+```mermaid
+graph TB
+    subgraph HOST["k8s-2 호스트 — 하이퍼바이저"]
+        direction TB
+        LV["libvirt / KVM<br/><i>qemu-system-x86 · virsh</i>"]
+        subgraph VMS["virbr1 · 192.168.122.0/24 &nbsp;(routed)"]
+            direction LR
+            CP["k2-cp1 · .11<br/><i>Ubuntu 24.04</i>"]
+            W1["k2-w1 · .21<br/><i>Ubuntu 24.04</i>"]
+            W2["k2-w2 · .22<br/><i>Ubuntu 24.04</i>"]
+        end
+    end
+    VMS -.->|"MASQUERADE (-o ens3)"| NET(("인터넷"))
+
+    style HOST fill:#eef4fa,stroke:#25628f
+    style VMS fill:#fff,stroke:#8aa7bd,stroke-dasharray: 4 3
+```
+
+**VM 3대가 뜨고, 인터넷이 되고, 스냅샷으로 되돌릴 수 있는 상태.**
+쿠버네티스는 아직 하나도 없다.
+
+| 추가된 것 | 어디에 |
+|---|---|
+| libvirt · QEMU · virtinst | 호스트 |
+| `k8snet` (routed, `virbr1`) | 호스트 |
+| `ip_forward` + MASQUERADE (`-o ens3`만) | 호스트 |
+| VM 3대 (OS만) | 호스트 위 |
+| 스냅샷 `clean` / `fresh` | 각 VM |
+
 ## 완료 기준
 
 - [ ] `virsh list --all`이 오류 없이 동작한다

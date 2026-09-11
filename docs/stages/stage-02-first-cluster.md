@@ -14,6 +14,46 @@
 노드 하나로 시작한다. 여기서 막히면 노드를 늘려도 똑같이 막히므로
 한 대에서 완전히 이해하고 넘어간다.
 
+## 이 단계를 마치면
+
+```mermaid
+graph TB
+    subgraph HOST["k8s-2 호스트 — 하이퍼바이저 (쿠버네티스 없음)"]
+        direction TB
+        HAP["<b>HAProxy</b><br/>192.168.122.1:6443"]
+        subgraph VMS["virbr1 · 192.168.122.0/24"]
+            direction LR
+            CP["<b>k2-cp1</b> · .11<br/>control plane<br/><i>apiserver · etcd<br/>scheduler · cm</i><br/>containerd · Calico"]
+            W1["k2-w1 · .21<br/><i>미참여</i>"]
+            W2["k2-w2 · .22<br/><i>미참여</i>"]
+        end
+    end
+    CP -.->|"kubelet · kubectl"| HAP
+    HAP ==>|"proxy"| CP
+
+    style HOST fill:#eef4fa,stroke:#25628f
+    style VMS fill:#fff,stroke:#8aa7bd,stroke-dasharray: 4 3
+    style CP fill:#dff0ea,stroke:#1b6e58
+    style W1 fill:#f4f6f8,stroke:#b9c4cd,color:#7b8894
+    style W2 fill:#f4f6f8,stroke:#b9c4cd,color:#7b8894
+    style HAP fill:#f7edd8,stroke:#96650b
+```
+
+**노드 1대짜리 클러스터.** 워커 VM은 떠 있지만 아직 합류하지 않았다.
+
+`k2-cp1`의 kubelet이 **같은 VM 안의 apiserver에 접속할 때도 HAProxy를 거친다.**
+`--control-plane-endpoint` 때문이고, Stage 5에서 CP를 늘려도 설정을 바꾸지 않기 위해서다.
+
+| 추가된 것 | 어디에 |
+|---|---|
+| HAProxy (`192.168.122.1:6443`) | 호스트 |
+| INPUT 방화벽 규칙 (`virbr1` → `6443`) | 호스트 |
+| containerd + `SystemdCgroup` | k2-cp1 |
+| kubeadm · kubelet · kubectl (v1.35.8, hold) | k2-cp1 |
+| control plane (static pod) | k2-cp1 |
+| Calico (VXLAN, MTU 1370) | 클러스터 |
+| 스냅샷 `stage2-done` | k2-cp1 |
+
 ## 완료 기준
 
 - [ ] `kubectl get nodes`에 `k2-cp1`이 `Ready`로 나온다
