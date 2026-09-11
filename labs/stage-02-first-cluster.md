@@ -243,7 +243,7 @@ kubeconfig가 다섯 개 생성됐다. 이들의 `server:`가 전부 `192.168.12
 > ⚠️ 토큰과 certificate-key는 **클러스터 가입 자격증명**이다. 실제 값은 적지 않는다.
 > 토큰은 24시간, 업로드된 인증서는 2시간 뒤 만료된다.
 
-**control plane 추가용** (Stage 5):
+**control plane 추가용** (Stage 9):
 
 ```bash
 kubeadm join 192.168.122.1:6443 --token <토큰> \
@@ -619,7 +619,7 @@ kubelet.conf · scheduler.conf · controller-manager.conf · admin.conf
 [k2-cp1]  kubelet ──► [호스트] HAProxy :6443 ──► [k2-cp1] apiserver :6443
 ```
 
-단일 엔드포인트의 목적이 그것이다 — Stage 5에서 CP를 3대로 늘려도
+단일 엔드포인트의 목적이 그것이다 — Stage 9에서 CP를 3대로 늘려도
 각 노드는 설정을 하나도 바꾸지 않는다.
 
 VM → 호스트로 상시 오가는 것: kubelet, kube-proxy, scheduler,
@@ -705,7 +705,7 @@ kubectl get node k2-cp1 -o jsonpath='{.status.conditions[?(@.type=="Ready")].mes
 ### `etcd-client`가 3.4인데 클러스터 etcd는 더 높다
 
 Ubuntu 저장소의 `etcd-client`는 3.4.30이다.
-Stage 5에서 스냅샷 백업·복구를 할 때 **버전이 맞는지 확인이 필요하다.**
+Stage 9에서 스냅샷 백업·복구를 할 때 **버전이 맞는지 확인이 필요하다.**
 `kubectl -n kube-system get pod etcd-k2-cp1 -o yaml | grep image`로 실제 버전을 볼 것.
 
 ---

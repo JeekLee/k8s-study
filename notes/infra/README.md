@@ -10,4 +10,4 @@
 
 ## 앞으로 채울 것
 
-- `wireguard-setup.md` — 호스트 간 터널 실제 구성 (Stage 4)
+- `wireguard-setup.md` — 호스트 간 터널 실제 구성 (Stage 8)

@@ -6,7 +6,7 @@
 > 두 호스트를 하이퍼바이저로 쓰고 그 위의 VM 6대로 클러스터를 만든다.
 > 두 후보의 장점을 합친 형태다 — 중첩 VM으로 노드를 늘리고, 터널로 두 호스트를 잇는다.
 > 설계는 [`docs/01-network-design.md`](../../../docs/01-network-design.md),
-> 절차는 [`docs/02-roadmap.md`](../../../docs/02-roadmap.md) Stage 4.
+> 절차는 [`docs/02-roadmap.md`](../../../docs/02-roadmap.md) Stage 8.
 
 ## 결정해야 할 것 — Phase 0 노드 간 연결 방식
 

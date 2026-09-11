@@ -103,7 +103,7 @@ sudo virsh net-autostart default --disable
 </network>
 ```
 
-k8s-1에서는 대역만 `192.168.121.x`로 바꾼다 (Stage 4).
+k8s-1에서는 대역만 `192.168.121.x`로 바꾼다 (Stage 8).
 
 ```bash
 sudo virsh net-define k8snet.xml
@@ -146,8 +146,8 @@ sudo apt-get install -y iptables-persistent
 sudo netfilter-persistent save
 ```
 
-> 이 **"인터페이스별 NAT 구분"** 이 Stage 4의 핵심이다.
-> 인터넷은 NAT, 상대 VM은 NAT 없이. 지금 이해해두면 Stage 4가 수월하다.
+> 이 **"인터페이스별 NAT 구분"** 이 Stage 8의 핵심이다.
+> 인터넷은 NAT, 상대 VM은 NAT 없이. 지금 이해해두면 Stage 8가 수월하다.
 
 ---
 
@@ -260,7 +260,7 @@ ssh ubuntu@192.168.122.11
 
 ---
 
-## 스냅샷 — Stage 6의 기반
+## 스냅샷 — Stage 10의 기반
 
 ```bash
 virsh snapshot-create-as k2-cp1 --name before-drill --description "훈련 전"

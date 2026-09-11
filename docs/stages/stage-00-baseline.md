@@ -36,7 +36,7 @@ graph TB
 ## 이 단계에서 한 일
 
 클러스터를 만들기 전에 **"왜 그냥은 안 되는가"** 를 먼저 이해했다.
-이 단계 없이 명령만 따라 쳤다면 Stage 4에서 반드시 막혔을 것이다.
+이 단계 없이 명령만 따라 쳤다면 Stage 8에서 반드시 막혔을 것이다.
 
 - 사설 IP가 전역 고유하지 않다는 것, CIDR 중복 시 피어링이 불가능한 이유
   → [`notes/network/concepts/01_vcn-vpc.md`](../../notes/network/concepts/01_vcn-vpc.md)
@@ -53,7 +53,7 @@ graph TB
 
 ## 이월 항목
 
-UDP 51820 통과 검증은 **Stage 4로 미뤘다.** OCI 콘솔 작업이 선행돼야 하는데,
+UDP 51820 통과 검증은 **Stage 8로 미뤘다.** OCI 콘솔 작업이 선행돼야 하는데,
 Stage 1~3은 k8s-2 내부에서만 이뤄져 노드 간 네트워크가 필요 없다.
 
 다음: [Stage 1 — 가상화 기반](stage-01-virtualization.md)

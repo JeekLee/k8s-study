@@ -96,7 +96,7 @@ virsh domiflist k2-cp1     # 어느 vnet 인지 확인
 ip link show master virbr1 # virbr1 에 붙은 것들
 ```
 
-### `wg0` — WireGuard 터널 (Stage 4)
+### `wg0` — WireGuard 터널 (Stage 8)
 
 커널이 만드는 가상 인터페이스. 여기로 보낸 패킷은 암호화되어 UDP로 나간다.
 → [`../reference/wireguard.md`](../reference/wireguard.md)

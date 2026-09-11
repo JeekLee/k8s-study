@@ -1,11 +1,11 @@
-# Stage 5 — HA control plane
+# Stage 9 — HA control plane
 
 | | |
 |---|---|
 | 대상 | 6노드 완성 |
 | 예상 소요 | 하루 |
-| 선행 | [Stage 4](stage-04-cross-host.md) |
-| 기록할 곳 | `labs/stage-05-ha.md` |
+| 선행 | [Stage 8](stage-08-cross-host.md) |
+| 기록할 곳 | `labs/stage-09-ha.md` |
 
 > 📝 계획 수준. 진입 시 확장한다.
 
@@ -92,4 +92,4 @@ sudo kubeadm join <endpoint>:6443 --token ... \
 진짜 HA는 장애 도메인이 3개여야 한다.
 **이 한계를 직접 겪는 것이 쿼럼을 이해하는 가장 좋은 방법이다.**
 
-다음: [Stage 6 — CKA 영역별 실습](stage-06-cka-domains.md)
+다음: [Stage 10 — CKA 영역별 실습](stage-10-cka-domains.md)

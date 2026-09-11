@@ -15,7 +15,7 @@ virsh snapshot-revert  k1-cp1 before-drill
 
 ## 훈련 목록
 
-Stage 5 이후 하나씩 채운다. 각 항목은 **시간을 재고** 기록한다.
+Stage 9 이후 하나씩 채운다. 각 항목은 **시간을 재고** 기록한다.
 
 ### 노드 레벨
 

@@ -8,10 +8,26 @@
 | 1 | [가상화 기반](stage-01-virtualization.md) | ✅ 완료 |
 | 2 | [첫 클러스터](stage-02-first-cluster.md) | ✅ 완료 |
 | 3 | [다중 노드](stage-03-multi-node.md) | 📖 절차 작성 완료 |
-| 4 | [크로스 호스트 라우팅](stage-04-cross-host.md) | 📝 계획 수준 |
-| 5 | [HA control plane](stage-05-ha.md) | 📝 계획 수준 |
-| 6 | [CKA 영역별 실습](stage-06-cka-domains.md) | 📝 계획 수준 |
-| 7 | [시험 대비 마무리](stage-07-exam-prep.md) | 📝 계획 수준 |
+| 4 | [워크로드와 서비스](stage-04-workloads.md) | 📖 절차 작성 완료 |
+| 5 | [데이터 계층](stage-05-data-layer.md) | 📝 계획 수준 |
+| 6 | [이벤트 기반 MSA](stage-06-event-driven.md) | 📝 계획 수준 |
+| 7 | [스케줄링과 운영](stage-07-scheduling-ops.md) | 📝 계획 수준 |
+| 8 | [크로스 호스트 라우팅](stage-08-cross-host.md) | 📝 계획 수준 |
+| 9 | [HA control plane](stage-09-ha.md) | 📝 계획 수준 |
+| 10 | [CKA 영역별 실습](stage-10-cka-domains.md) | 📝 계획 수준 |
+| 11 | [시험 대비 마무리](stage-11-exam-prep.md) | 📝 계획 수준 |
+
+### 두 갈래
+
+| Stage | 성격 |
+|---|---|
+| 0~3, 8~9 | **인프라** — 클러스터를 만든다 |
+| **4~7** | **애플리케이션** — 클러스터를 쓴다 |
+| 10~11 | **시험** — 속도와 범위 |
+
+앱 단계(4~7)를 크로스 호스트(8)보다 먼저 두는 이유는,
+**돌아가는 워크로드가 있어야 터널과 HA 를 검증할 수 있기** 때문이다.
+빈 클러스터로는 `kubectl get nodes` 밖에 확인할 것이 없다.
 
 ## 문서를 셋으로 나눈 이유
 

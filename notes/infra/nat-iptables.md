@@ -1,6 +1,6 @@
 # NAT과 iptables
 
-Stage 1의 인터넷 접속 설정에서 시작해, Stage 4의 라우팅과 Stage 6의
+Stage 1의 인터넷 접속 설정에서 시작해, Stage 8의 라우팅과 Stage 4·10의
 kube-proxy 진단까지 계속 쓰이는 내용.
 
 ## NAT의 두 축
@@ -79,7 +79,7 @@ iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination 192.1
                             └ 나감
 ```
 
-Stage 4에서 `FORWARD` 규칙을 넣는 것도 이 그림의 `filter FORWARD` 자리다.
+Stage 8에서 `FORWARD` 규칙을 넣는 것도 이 그림의 `filter FORWARD` 자리다.
 
 ## 테이블 종류
 
@@ -110,7 +110,7 @@ sudo sysctl --system
 sudo iptables -t nat -A POSTROUTING -s 192.168.122.0/24 -o ens3 -j MASQUERADE
 ```
 
-### Stage 4 — 크로스 호스트 라우팅
+### Stage 8 — 크로스 호스트 라우팅
 
 ```bash
 # VM 대역과 터널 사이의 통과 허용
@@ -186,7 +186,7 @@ controller-manager, kubectl, 그리고 워커의 `kubeadm join`.
 | `Connection refused` | 닿았지만 그 포트에 리스너가 없음 |
 | 타임아웃 | DROP 당했거나 경로가 없음 |
 
-### Stage 6 — 맥에서 서비스 열어보기
+### Stage 4 — 맥에서 서비스 열어보기
 
 VM은 `192.168.122.x`라 맥에서 직접 안 닿는다. 두 가지 방법이 있다.
 

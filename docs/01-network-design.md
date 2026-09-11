@@ -141,7 +141,7 @@ B안(VCN 재생성)은 CIDR 중복 때문에 인스턴스 재생성이 필요해
 호스트는 터널 종단이자 라우터 역할만 한다.
 
 이 방식의 근거와 대안 비교는 [`notes/network/reference/`](../notes/network/reference/README.md)에 남아 있다.
-단계별 구축 절차는 [`02-roadmap.md`](02-roadmap.md) Stage 4를 따른다.
+단계별 구축 절차는 [`02-roadmap.md`](02-roadmap.md) Stage 8를 따른다.
 
 ## 4. 대역 설계
 
@@ -173,7 +173,7 @@ B안(VCN 재생성)은 CIDR 중복 때문에 인스턴스 재생성이 필요해
 
 > 아래는 **호스트 간 터널** 구성이다.
 > 여기에 VM 대역 라우팅(`AllowedIPs` 확장 + `ip_forward` + FORWARD 규칙)을 더하면
-> 크로스 호스트 클러스터가 된다. 전체 절차는 [`02-roadmap.md`](02-roadmap.md) Stage 4 참고.
+> 크로스 호스트 클러스터가 된다. 전체 절차는 [`02-roadmap.md`](02-roadmap.md) Stage 8 참고.
 
 
 ### 5-1. OCI 보안 목록 (콘솔 작업)

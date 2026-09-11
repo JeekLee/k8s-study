@@ -1,9 +1,9 @@
-# Stage 6 — CKA 영역별 실습
+# Stage 10 — CKA 영역별 실습
 
 | | |
 |---|---|
 | 예상 소요 | 3–5주 |
-| 선행 | [Stage 5](stage-05-ha.md) |
+| 선행 | [Stage 9](stage-09-ha.md) |
 | 기록할 곳 | [`labs/drills/`](../../labs/drills/) |
 
 > 📝 계획 수준. 진입 시 확장한다.
@@ -38,7 +38,7 @@ graph TB
 
 시험 범위를 클러스터 위에서 전부 손으로 해본다.
 
-Stage 1–5를 지나면 Cluster Architecture 영역(25%)은 이미 상당 부분 몸에 남아 있다.
+Stage 1–9를 지나면 Cluster Architecture 영역(25%)은 이미 상당 부분 몸에 남아 있다.
 남은 것을 **배점 순**으로 채운다.
 
 | 영역 | 배점 | 할 것 |
@@ -57,4 +57,4 @@ Stage 1–5를 지나면 Cluster Architecture 영역(25%)은 이미 상당 부�
 - [ ] 각 영역의 대표 작업을 문서 없이 수행할 수 있다
 - [ ] 막힌 것이 `labs/`에 기록되어 있다
 
-다음: [Stage 7 — 시험 대비 마무리](stage-07-exam-prep.md)
+다음: [Stage 11 — 시험 대비 마무리](stage-11-exam-prep.md)

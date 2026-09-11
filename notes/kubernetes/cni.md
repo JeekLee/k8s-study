@@ -120,13 +120,13 @@ spec:
 
 | 항목 | 값 | 이유 |
 |---|---|---|
-| `encapsulation` | **VXLAN** | Stage 4 에서 WireGuard `AllowedIPs` 필터를 통과하려면 필수 |
+| `encapsulation` | **VXLAN** | Stage 8 에서 WireGuard `AllowedIPs` 필터를 통과하려면 필수 |
 | `mtu` | **1370** | `wg0` 1420 − VXLAN 50 |
 | `interface` | **`enp1s0`** | VM 의 인터페이스. 호스트의 `ens3`가 아니다 |
 | `cidr` | `10.244.0.0/16` | `kubeadm init --pod-network-cidr`과 일치해야 한다 |
 
 > **왜 VXLAN이 필수인가.**
-> Stage 4 에서 파드 패킷이 WireGuard 터널을 지나야 하는데,
+> Stage 8 에서 파드 패킷이 WireGuard 터널을 지나야 하는데,
 > `AllowedIPs`에 파드 대역(`10.244.0.0/16`)이 없어서
 > **캡슐화하지 않으면 수신 필터에 걸려 조용히 버려진다.**
 > VXLAN 으로 감싸면 바깥 헤더 출발지가 노드 IP(`192.168.12x.x`)가 되어 통과한다.

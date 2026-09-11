@@ -42,7 +42,7 @@ graph TB
 **노드 1대짜리 클러스터.** 워커 VM은 떠 있지만 아직 합류하지 않았다.
 
 `k2-cp1`의 kubelet이 **같은 VM 안의 apiserver에 접속할 때도 HAProxy를 거친다.**
-`--control-plane-endpoint` 때문이고, Stage 5에서 CP를 늘려도 설정을 바꾸지 않기 위해서다.
+`--control-plane-endpoint` 때문이고, Stage 9에서 CP를 늘려도 설정을 바꾸지 않기 위해서다.
 
 | 추가된 것 | 어디에 |
 |---|---|
@@ -104,11 +104,11 @@ k8s-2 호스트  (하이퍼바이저 — 쿠버네티스 없음)
 
 ### 1-1. 왜 지금인가
 
-control plane이 Stage 5에서 3대가 되므로 `--control-plane-endpoint`가 필요하다.
+control plane이 Stage 9에서 3대가 되므로 `--control-plane-endpoint`가 필요하다.
 이 주소는 **클러스터의 영구 주소**가 되어 인증서 SAN과 모든 kubeconfig에 박힌다.
 
 **나중에 바꾸려면 인증서를 전부 재발급해야 한다.**
-지금 HAProxy를 거치게 잡아두면 Stage 5에서 클러스터를 다시 만들지 않아도 된다.
+지금 HAProxy를 거치게 잡아두면 Stage 9에서 클러스터를 다시 만들지 않아도 된다.
 
 배경은 [`notes/infra/haproxy.md`](../../notes/infra/haproxy.md).
 
@@ -134,7 +134,7 @@ backend k8s-cp
     balance roundrobin
     option tcp-check
     server k2-cp1 192.168.122.11:6443 check
-    # Stage 5 에서 추가:
+    # Stage 9 에서 추가:
     # server k1-cp1 192.168.121.11:6443 check
     # server k1-cp2 192.168.121.12:6443 check
 
@@ -226,7 +226,7 @@ kubelet.conf · scheduler.conf · controller-manager.conf · admin.conf
 ```
 
 이상해 보이지만 그것이 단일 엔드포인트의 목적이다 —
-Stage 5에서 CP를 3대로 늘려도 **각 노드는 설정을 하나도 바꾸지 않는다.**
+Stage 9에서 CP를 3대로 늘려도 **각 노드는 설정을 하나도 바꾸지 않는다.**
 
 VM → 호스트로 상시 오가는 것: kubelet, kube-proxy, scheduler,
 controller-manager, kubectl, 그리고 워커의 `kubeadm join`. **거의 전부다.**
@@ -496,7 +496,7 @@ sudo kubeadm init \
 | `--apiserver-advertise-address` | apiserver가 바인딩할 **로컬** 주소. VM의 실제 IP여야 한다 |
 | `--pod-network-cidr` | 파드에 나눠줄 대역. CNI 설정과 **반드시 일치**시킬 것 |
 | `--service-cidr` | Service ClusterIP 대역 (기본값이지만 명시해 둔다) |
-| `--upload-certs` | 인증서를 Secret으로 올려 **Stage 5에서 CP 추가**를 쉽게 한다 |
+| `--upload-certs` | 인증서를 Secret으로 올려 **Stage 9에서 CP 추가**를 쉽게 한다 |
 
 > **두 주소의 역할이 다르다.**
 > `advertise-address`는 "내가 어디에 바인딩하는가"(로컬 인터페이스에 실제로 있어야 함),
@@ -526,7 +526,7 @@ kubeadm 자신의 헬스체크는 **엔드포인트가 아니라 로컬 주소**
 성공하면 마지막에 `kubeadm join` 명령이 두 종류 나온다.
 
 ```
-# control plane 추가용 (Stage 5)
+# control plane 추가용 (Stage 9)
 kubeadm join 192.168.122.1:6443 --token ... \
   --discovery-token-ca-cert-hash sha256:... \
   --control-plane --certificate-key ...
@@ -636,13 +636,13 @@ kubectl create -f calico-install.yaml
 
 | 항목 | 값 | 이유 |
 |---|---|---|
-| `mtu` | **1370** | Stage 4의 이중 캡슐화 대비. `wg0` 1420 − VXLAN 50 |
+| `mtu` | **1370** | Stage 8의 이중 캡슐화 대비. `wg0` 1420 − VXLAN 50 |
 | `interface` | **`enp1s0`** | VM의 인터페이스 이름. 호스트의 `ens3`가 아니다 |
 | `cidr` | `10.244.0.0/16` | `--pod-network-cidr`과 일치 |
-| `encapsulation` | **VXLAN** | Stage 4에서 WireGuard `AllowedIPs` 필터를 통과하려면 필수 |
+| `encapsulation` | **VXLAN** | Stage 8에서 WireGuard `AllowedIPs` 필터를 통과하려면 필수 |
 
 > **지금은 단일 노드라 MTU 1370이 필요 없다.** 그런데도 미리 잡는 이유는,
-> Stage 4에서 값을 바꾸면 모든 파드를 재시작해야 하고
+> Stage 8에서 값을 바꾸면 모든 파드를 재시작해야 하고
 > "MTU 때문인가 다른 문제인가"를 가리기 어려워지기 때문이다.
 > **변수를 미리 없앤다.**
 
@@ -769,7 +769,7 @@ sudo ss -lntp | grep 6443
 ```
 
 `INTERNAL-IP`가 `192.168.122.11`인지 반드시 확인한다.
-다른 값이면 Stage 4에서 문제가 된다.
+다른 값이면 Stage 8에서 문제가 된다.
 
 ---
 
