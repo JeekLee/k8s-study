@@ -42,7 +42,7 @@ graph TB
 
 | 추가된 것 | 무엇 |
 |---|---|
-| GHCR 이미지 | `ghcr.io/<계정>/k8s-study-inventory` |
+| GHCR 이미지 | `ghcr.io/jeeklee/k8s-study-inventory` |
 | `imagePullSecret` | private 레지스트리 인증 |
 | Deployment (replicas 3) | 롤링 업데이트·롤백 |
 | ConfigMap · Secret | 설정 주입 |
@@ -94,36 +94,46 @@ ghcr.io/jeeklee/k8s-study-inventory:a1b2c3d
 
 ### 1-2. 빌드하고 올리기
 
-**빌드는 맥이나 k8s-1 에서 한다.** 클러스터 노드에서 빌드하지 않는다 —
-노드는 워크로드를 돌리는 곳이지 빌드 서버가 아니다.
+**GitHub Actions 가 빌드한다.** 이미 올라가 있으므로 이 단계에서는 받아 쓰기만 한다.
 
-```bash
-cd apps/inventory
-
-# GHCR 로그인 — GitHub Personal Access Token (write:packages 권한)
-echo $GHCR_TOKEN | docker login ghcr.io -u <계정> --password-stdin
-
-TAG=$(git rev-parse --short HEAD)
-docker build -t ghcr.io/<계정>/k8s-study-inventory:$TAG .
-docker push ghcr.io/<계정>/k8s-study-inventory:$TAG
+```
+ghcr.io/jeeklee/k8s-study-inventory:47d2453
 ```
 
-> 맥이 Apple Silicon 이면 **아키텍처가 다르다.** 노드는 amd64 다.
+`apps/` 아래를 고치고 push 하면 변경된 서비스만 자동으로 다시 빌드된다.
+수동 실행은 Actions 탭 → `build-images` → Run workflow.
+
+> **왜 로컬에서 빌드하지 않나.**
+> 맥은 **arm64**, 클러스터 노드는 **amd64** 다.
+> 로컬에서 그냥 빌드하면 파드가 `exec format error` 로 죽는다 —
+> 원인 짐작이 어려운 증상이다. `--platform linux/amd64` 를 주면 되지만
+> 에뮬레이션이라 느리고, Java 는 특히 그렇다.
+>
+> 빠른 확인이 필요할 때만 로컬에서 굽는다:
 > ```bash
-> docker build --platform linux/amd64 -t ... .
+> cd apps/inventory && docker build -t inventory:dev . && docker run --rm -p 8000:8000 inventory:dev
 > ```
-> 이걸 빠뜨리면 파드가 `exec format error` 로 죽는다. 원인 짐작이 어려운 증상이다.
+> **클러스터에 올릴 이미지는 Actions 가 만든다.**
+
+> ⚠️ **클러스터 노드에서는 빌드하지 않는다.**
+> 노드는 워크로드를 돌리는 곳이지 빌드 서버가 아니다.
 
 ### 1-3. `imagePullSecret`
 
 이미지를 private 으로 두면 클러스터가 인증해야 한다.
 
 ```bash
+# read:packages 권한만 있으면 된다 (pull 전용)
 kubectl create secret docker-registry ghcr \
   --docker-server=ghcr.io \
-  --docker-username=<계정> \
+  --docker-username=jeeklee \
   --docker-password=$GHCR_TOKEN
 ```
+
+> **GHCR 패키지는 기본이 private 이다.** Actions 가 올린 것도 마찬가지라
+> 이 Secret 없이는 `ImagePullBackOff` 가 난다.
+> 패키지 설정에서 public 으로 바꾸면 Secret 없이도 되지만,
+> **private 인 채로 두고 연습하는 편이 낫다** — 실무가 그렇다.
 
 파드에서 참조한다.
 
@@ -182,7 +192,7 @@ spec:
         - name: ghcr
       containers:
         - name: inventory
-          image: ghcr.io/<계정>/k8s-study-inventory:<태그>
+          image: ghcr.io/jeeklee/k8s-study-inventory:<태그>
           ports:
             - containerPort: 8000
           env:
@@ -319,7 +329,7 @@ kubectl get endpoints inventory      # 주소 2개
 
 ```bash
 # 코드를 고치고 새 태그로 빌드·푸시한 뒤
-kubectl set image deployment/inventory inventory=ghcr.io/<계정>/k8s-study-inventory:<새태그>
+kubectl set image deployment/inventory inventory=ghcr.io/jeeklee/k8s-study-inventory:<새태그>
 
 kubectl rollout status deployment/inventory
 kubectl get pods -w                    # 하나씩 교체되는 것을 본다

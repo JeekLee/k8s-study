@@ -49,9 +49,9 @@ sequenceDiagram
 |---|---|---|---|---|
 | [**inventory**](inventory/) | FastAPI | 메모리 → MySQL | 재고 예약·복원 | Stage 4 |
 | [**order**](order/) | Spring Boot | H2 → MySQL | 주문 상태 관리 | Stage 5 |
-| [**payment**](payment/) | Spring Boot | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 6 |
+| [**payment**](payment/) | Spring Boot 4 | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 6 |
 | [**notification**](notification/) | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 6 |
-| [**web**](web/) | Next.js | — | 주문 UI | Stage 6 |
+| [**web**](web/) | Next 16 | — | 주문 UI | Stage 6 |
 
 **코드는 전부 미리 만들어 뒀다.** 앱 작성이 목적이 아니므로
 단계마다 코드를 새로 쓰느라 흐름이 끊기지 않게 했다.
@@ -128,8 +128,21 @@ apps/
 실무에서 가장 흔한 형태이며, private 으로 두면 `imagePullSecret` 을 제대로 연습할 수 있다.
 
 ```
-ghcr.io/<계정>/k8s-study-<서비스>:<커밋SHA7>
+ghcr.io/jeeklee/k8s-study-<서비스>:<커밋SHA7>
 ```
+
+**빌드 검증 완료** (2026-09-11, 커밋 `47d2453`) — 5개 서비스 모두 GHCR 에 올라가 있다.
+
+```
+ghcr.io/jeeklee/k8s-study-inventory:47d2453
+ghcr.io/jeeklee/k8s-study-order:47d2453
+ghcr.io/jeeklee/k8s-study-payment:47d2453
+ghcr.io/jeeklee/k8s-study-notification:47d2453
+ghcr.io/jeeklee/k8s-study-web:47d2453
+```
+
+> GHCR 패키지는 **기본이 private** 이다. 그래서 Stage 4 에서
+> `imagePullSecret` 을 만드는 것이 형식적 절차가 아니라 실제로 필요하다.
 
 태그는 **git 커밋 SHA 앞 7자리**를 쓴다. `latest` 는 쓰지 않는다 —
 어떤 이미지가 돌고 있는지 알 수 없어지고, `imagePullPolicy` 와 얽혀 문제가 생긴다.
