@@ -270,25 +270,111 @@ kubectl get pods -o wide
 > (`maxSkew: 3`, `whenUnsatisfiable: ScheduleAnyway`).
 > 완벽히 균등하지는 않다 — **권고이지 강제가 아니기 때문**이다.
 
-### 4-3. `requests`가 하는 일
+### 4-3. `requests` 와 `limits` — 무엇을 선언하는가
 
 ```bash
 kubectl describe node k2-w1 | grep -A8 "Allocated resources"
 ```
 
 ```
-Resource   Requests    Limits
-cpu        150m (3%)   0 (0%)
-memory     50Mi (0%)   0 (0%)
+Resource           Requests  Limits
+--------           --------  ------
+cpu                0 (0%)    0 (0%)
+memory             0 (0%)    0 (0%)
+ephemeral-storage  0 (0%)    0 (0%)
+hugepages-1Gi      0 (0%)    0 (0%)
+hugepages-2Mi      0 (0%)    0 (0%)
 ```
 
-**`requests` 합계만 나온다.** 실제 사용량이 아니다.
+**파드 3개가 돌고 있는데 전부 0이다.** 고장이 아니다.
 
-`kubectl create deployment`로 만든 파드에는 `requests`가 없으므로
-**스케줄러 입장에서 이 파드들은 자원을 0 쓰는 것으로 보인다.**
-노드가 실제로 꽉 차도 계속 배치한다.
+#### 둘 다 "측정값"이 아니라 "선언값"이다
 
-`requests`를 준 파드로 확인:
+| | 뜻 | 누가 보나 |
+|---|---|---|
+| **`requests`** | "이만큼은 **확보해줘**" | **스케줄러** — 어느 노드에 놓을지 정할 때 |
+| **`limits`** | "이 이상은 **못 쓴다**" | **kubelet/커널** — cgroup 에 실제로 강제 |
+
+`kubectl create deployment` 는 이 값을 적어주지 않는다. 편의 명령이라 최소 스펙만 만든다.
+**안 적으면 0이고, 0은 "측정해보니 0"이 아니라 "선언하지 않았다"는 뜻이다.**
+
+#### 실제로는 얼마나 쓰고 있나
+
+노드에 들어가 cgroup 을 직접 본다. `kubectl top` 은 metrics-server 가 없어 아직 안 된다.
+
+```bash
+# 워커에서
+for f in /sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod*/memory.current; do
+  echo "$(( $(cat $f) / 1024 / 1024 )) MiB"
+done
+```
+
+실측(2026-09-11, `k2-w1`):
+
+```
+스케줄러 장부 :  memory 0 (0%)
+실제 사용     :  339 MiB
+memory.max    :  max          ← 상한 없음
+```
+
+**스케줄러는 이 노드가 텅 빈 줄 안다.** 파드를 계속 밀어넣다가
+실제 메모리가 바닥나면 그때 OOM 이 터진다.
+**`requests` 를 안 적는 것이 위험한 이유가 이것이다.**
+
+#### CPU 와 메모리는 초과했을 때가 다르다
+
+| | 초과 시 | 성격 |
+|---|---|---|
+| **CPU** | **스로틀링** — 느려질 뿐 죽지 않음 | 압축 가능 |
+| **메모리** | **OOMKilled** — 즉시 강제 종료 | 압축 불가능 |
+
+메모리는 "조금만 쓰게 하기"가 불가능하다. 이미 할당된 것을 뺏을 수 없으니 죽이는 수밖에 없다.
+
+그래서 **`limits.memory` 는 걸고, `limits.cpu` 는 신중하게 쓴다.**
+CPU 제한은 노드에 여유가 있는데도 인위적으로 느리게 만들 수 있다.
+
+#### 자원 종류는 네 가지다
+
+```bash
+kubectl describe node k2-w1 | sed -n '/^Capacity:/,/^System Info:/p'
+```
+
+| 자원 | 이 노드의 Capacity | 초과 시 |
+|---|---|---|
+| `cpu` | 4 | 스로틀링 |
+| `memory` | 7.7 GiB | **OOMKilled** (컨테이너 재시작) |
+| `ephemeral-storage` | 37 GiB | **파드 축출** (Evicted) |
+| `hugepages-1Gi` / `hugepages-2Mi` | **0** | — |
+
+**`ephemeral-storage`** 는 노드 루트 디스크를 컨테이너가 쓰는 몫이다.
+컨테이너 쓰기 레이어, `emptyDir`, 그리고 **컨테이너 로그**가 여기 쌓인다.
+PV 와 달리 파드가 죽으면 함께 사라진다.
+
+> 실무에서 흔한 사고 — 앱이 로그를 **파일로** 쌓다가 노드 디스크가 차고,
+> kubelet 이 `DiskPressure` 를 선언해 **그 노드의 파드를 무더기로 축출**한다.
+> 한 파드의 실수가 노드 전체를 망가뜨린다. 그래서 로그는 `stdout` 으로 내보낸다.
+
+**`hugepages`** 만 이유가 다르다. **`Capacity` 부터 0**이다 —
+선언을 안 해서가 아니라 **노드에 자원 자체가 없다.**
+
+리눅스 기본 페이지는 4 KiB 인데, 수십 GB 를 쓰는 프로그램이면 페이지가 수백만 개가 되어
+주소 변환 캐시(TLB)가 계속 미스를 낸다. hugepage 는 그 단위를 2 MiB 또는 1 GiB 로 키운다.
+DPDK, 대형 DB, `-XX:+UseLargePages` 를 쓰는 JVM 등이 쓴다.
+
+**노드에서 커널 파라미터로 미리 떼어놔야 하고, 떼어내는 순간 일반 메모리에서 빠진다.**
+안 쓰면 낭비이므로 기본은 0이다. (`requests` 와 `limits` 가 같아야 한다 — 오버커밋 불가)
+
+#### `Capacity` 와 `Allocatable` 이 다르다
+
+```
+Capacity:     memory: 8130776Ki
+Allocatable:  memory: 8028376Ki      ← 약 100 MiB 적다
+```
+
+차이만큼이 **kubelet 과 시스템 몫으로 예약**된 것이다.
+파드가 쓸 수 있는 것은 `Allocatable` 까지다.
+
+#### 실습 — `requests` 를 준 파드와 비교
 
 ```bash
 kubectl apply -f - <<'YAML'
@@ -313,8 +399,35 @@ spec:
               memory: 1Gi
 YAML
 
-kubectl describe node k2-w1 | grep -A8 "Allocated resources"   # 숫자가 올라간다
+kubectl get pods -o wide -l app=sized
+kubectl describe node k2-w1 | grep -A6 "Allocated resources"
 ```
+
+볼 것:
+
+1. **숫자가 올라간다** — `sized` 파드가 간 노드만
+2. **`web` 6개는 여전히 0** — 같은 노드에서 실제로 돌고 있는데도
+3. **3개가 2:1 로 나뉜다** — 첫 배치 뒤 그 노드의 여유가 줄어 다음은 반대쪽으로 간다.
+   `requests` 가 있으니 이번에는 자원 점수가 실제로 작동한다
+
+#### QoS 클래스 — 조합이 등급을 만든다
+
+```bash
+kubectl get pod -l app=web -o jsonpath='{.items[0].status.qosClass}'    # BestEffort
+kubectl get pod -l app=sized -o jsonpath='{.items[0].status.qosClass}'  # Burstable
+```
+
+| 클래스 | 조건 | 메모리 부족 시 |
+|---|---|---|
+| `Guaranteed` | requests == limits (전부) | **가장 나중에** 축출 |
+| `Burstable` | requests < limits | 중간 |
+| **`BestEffort`** | **아무것도 없음** | **가장 먼저** 축출 |
+
+실측에서 cgroup 경로가 `kubepods-besteffort.slice` 였던 것이 그 증거다.
+**지금 `web` 파드들은 가장 먼저 쫓겨나는 등급**이다.
+
+> 자세한 내용은 [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md).
+> QoS 를 실제로 다루는 것은 [Stage 7](stage-07-scheduling-ops.md) 이다.
 
 ### 4-4. 자원이 모자라면 `Pending`
 

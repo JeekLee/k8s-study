@@ -214,7 +214,10 @@ spec:
 
 > **`limits.cpu` 를 일부러 두지 않았다.** CPU 제한은 스로틀링을 일으키는데,
 > 자원이 남는 환경에서는 득보다 실이 크다. 메모리는 넘으면 OOMKill 이므로 제한한다.
-> → Stage 7 에서 QoS 클래스와 함께 다시 본다.
+>
+> `requests` 와 `limits` 의 차이, 자원 네 종류, QoS 클래스는
+> [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md) 에 정리했다.
+> Stage 7 에서 QoS 를 실제로 다룬다.
 
 ### 2-3. probe 세 가지
 

@@ -103,4 +103,4 @@ Stage 3 에서 빈 파드로 해본 것을 **실제 의존성이 있는 워크�
 | 파드가 자꾸 축출됨 | QoS 가 BestEffort 인가 |
 | 선점이 안 일어남 | `preemptionPolicy`, priority 값 차이 |
 
-관련: [`notes/kubernetes/scheduler.md`](../../notes/kubernetes/scheduler.md)
+관련: [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md) · [`notes/kubernetes/scheduler.md`](../../notes/kubernetes/scheduler.md)

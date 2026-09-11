@@ -8,6 +8,7 @@
 | [`container-runtime.md`](container-runtime.md) | containerd와 CRI. 계층 구조, cgroup 드라이버, `crictl` |
 | [`cni.md`](cni.md) | CNI 규약과 Calico. 파드 네트워킹, VXLAN이 필수인 이유, NetworkPolicy |
 | [`scheduler.md`](scheduler.md) | 필터·점수 두 단계, 가중치, `requests`가 없을 때 무엇이 분산을 만드는가 |
+| [`resources.md`](resources.md) | `requests`·`limits`의 차이, 자원 네 종류, QoS 클래스, `Allocatable` |
 
 ## 앞으로 채울 것
 
