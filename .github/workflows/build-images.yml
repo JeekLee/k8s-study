@@ -35,13 +35,19 @@ jobs:
             fi
             exit 0
           fi
-          # 변경된 앱만 추린다
+          # 변경된 앱만 추린다. Dockerfile 이 있는 디렉터리만 서비스로 본다
+          # (apps/manifests 처럼 빌드 대상이 아닌 것을 걸러낸다)
           CHANGED=$(git diff --name-only HEAD^ HEAD -- apps/ \
             | awk -F/ '$1=="apps" && NF>2 {print $2}' | sort -u)
-          if [ -z "$CHANGED" ]; then
+          SERVICES=""
+          for s in $CHANGED; do
+            [ -f "apps/$s/Dockerfile" ] && SERVICES="$SERVICES$s\n"
+          done
+          SERVICES=$(printf "$SERVICES" | sed '/^$/d')
+          if [ -z "$SERVICES" ]; then
             echo 'matrix=[]' >> "$GITHUB_OUTPUT"
           else
-            echo "matrix=$(echo "$CHANGED" | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+            echo "matrix=$(echo "$SERVICES" | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
           fi
 
   build:
