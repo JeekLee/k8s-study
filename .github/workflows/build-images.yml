@@ -1,0 +1,90 @@
+name: build-images
+
+# 변경된 앱만 빌드해 GHCR 에 올린다.
+# 맥이 arm64 이고 클러스터 노드가 amd64 라, 여기서 네이티브 amd64 로 빌드하는 편이
+# 로컬 에뮬레이션보다 훨씬 빠르고 결과도 확실하다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "빌드할 서비스 (비우면 전부)"
+        required: false
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+
+      - id: set
+        run: |
+          ALL='["inventory","order","payment","notification","web"]'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.service }}" ]; then
+              echo "matrix=[\"${{ inputs.service }}\"]" >> "$GITHUB_OUTPUT"
+            else
+              echo "matrix=$ALL" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          # 변경된 앱만 추린다
+          CHANGED=$(git diff --name-only HEAD^ HEAD -- apps/ \
+            | awk -F/ '$1=="apps" && NF>2 {print $2}' | sort -u)
+          if [ -z "$CHANGED" ]; then
+            echo 'matrix=[]' >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$(echo "$CHANGED" | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write          # GHCR 에 push 하려면 필요하다
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # 별도 토큰 발급이 필요 없다
+
+      - name: 태그 계산
+        id: meta
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "repo=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.repo }}/k8s-study-${{ matrix.service }}:${{ steps.meta.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 결과
+        run: |
+          echo "### ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${{ steps.meta.outputs.repo }}/k8s-study-${{ matrix.service }}:${{ steps.meta.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

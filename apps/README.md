@@ -45,13 +45,31 @@ sequenceDiagram
 
 ## 바운디드 컨텍스트
 
-| BC | 스택 | 저장소 | 역할 | 등장 |
+| BC | 스택 | 저장소 | 역할 | 배포 |
 |---|---|---|---|---|
-| **inventory** | FastAPI | MySQL | 재고 예약·복원 | Stage 4 |
-| **order** | Spring Boot | MySQL | 주문 상태 관리, Outbox | Stage 6 |
-| **payment** | Spring Boot | MySQL | 결제 승인·취소 | Stage 6 |
-| **notification** | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 6 |
-| **web** | Next.js | — | 주문 UI | Stage 6 |
+| [**inventory**](inventory/) | FastAPI | 메모리 → MySQL | 재고 예약·복원 | Stage 4 |
+| [**order**](order/) | Spring Boot | H2 → MySQL | 주문 상태 관리 | Stage 5 |
+| [**payment**](payment/) | Spring Boot | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 6 |
+| [**notification**](notification/) | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 6 |
+| [**web**](web/) | Next.js | — | 주문 UI | Stage 6 |
+
+**코드는 전부 미리 만들어 뒀다.** 앱 작성이 목적이 아니므로
+단계마다 코드를 새로 쓰느라 흐름이 끊기지 않게 했다.
+각 단계는 **무엇을 배포하고 무엇을 연결하는가**만 다룬다.
+
+### 단계가 진행돼도 이미지는 그대로다
+
+모든 서비스가 **환경변수로 동작을 바꾼다.**
+
+| 변수 | 없을 때 | 있을 때 |
+|---|---|---|
+| `DATASOURCE_URL` | 메모리 H2 (Spring) | MySQL |
+| `DATABASE_URL` | 메모리 dict (FastAPI) | MySQL |
+| `KAFKA_BOOTSTRAP` | 로그만 남김 | 실제 발행·구독 |
+
+Stage 4 는 아무것도 주지 않고 띄우고, Stage 5 에서 DB 를, Stage 6 에서 Kafka 를 붙인다.
+**이미지를 다시 빌드하지 않는다** — 12-factor 의 설정 분리를 그대로 따른 것이고,
+"설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
 
 ### 스택을 나눈 기준
 
@@ -110,11 +128,39 @@ apps/
 실무에서 가장 흔한 형태이며, private 으로 두면 `imagePullSecret` 을 제대로 연습할 수 있다.
 
 ```
-ghcr.io/jeeklee/k8s-study-inventory:<태그>
+ghcr.io/<계정>/k8s-study-<서비스>:<커밋SHA7>
 ```
 
 태그는 **git 커밋 SHA 앞 7자리**를 쓴다. `latest` 는 쓰지 않는다 —
 어떤 이미지가 돌고 있는지 알 수 없어지고, `imagePullPolicy` 와 얽혀 문제가 생긴다.
+
+### GitHub Actions 가 빌드한다
+
+[`.github/workflows/build-images.yml`](../.github/workflows/build-images.yml)
+
+`apps/` 아래가 바뀌면 **변경된 서비스만** 골라 `linux/amd64` 로 빌드해 GHCR 에 올린다.
+
+```
+push → 변경 감지 → 매트릭스 빌드 → ghcr.io 푸시 → 요약에 이미지 경로 출력
+```
+
+| 왜 Actions 인가 | |
+|---|---|
+| 맥은 **arm64**, 클러스터 노드는 **amd64** | 로컬 빌드는 에뮬레이션이라 느리다 (Java 는 특히) |
+| `GITHUB_TOKEN` 으로 GHCR 인증 | 별도 토큰 발급이 필요 없다 |
+| 공개 저장소라 Actions 무료 | 분 수 제한 없음 |
+
+수동 실행도 된다 — Actions 탭에서 `build-images` → Run workflow.
+
+### 로컬에서 빠르게 확인할 때
+
+```bash
+cd apps/inventory
+docker build -t inventory:dev .
+docker run --rm -p 8000:8000 inventory:dev
+```
+
+로컬 확인용은 플랫폼을 지정하지 않아도 된다. **클러스터에 올릴 이미지는 Actions 가 만든다.**
 
 ## 단계별로 쌓이는 것
 

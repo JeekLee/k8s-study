@@ -20,10 +20,20 @@
 
 ## 환경변수
 
-| 변수 | 용도 |
-|---|---|
-| `APP_VERSION` | 이미지 태그. 롤링 업데이트 확인용 |
-| `GREETING` | ConfigMap 주입이 되는지 확인용 |
+| 변수 | 없을 때 | 있을 때 |
+|---|---|---|
+| `APP_VERSION` | `dev` | 응답에 표시 — 롤링 업데이트 확인용 |
+| `GREETING` | 기본 문구 | ConfigMap 주입 확인용 |
+| `DATABASE_URL` | **메모리** (Stage 4) | **MySQL** (Stage 5~) |
+
+`DATABASE_URL` 예시:
+
+```
+mysql+pymysql://inventory:<비밀번호>@mysql:3306/inventory
+```
+
+**이미지는 그대로 두고 환경변수만 바꿔 저장소를 전환한다.**
+Stage 5 에서 "설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
 
 ## 로컬 실행
 

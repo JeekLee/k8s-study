@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: order
+
+  # DATASOURCE_URL 이 없으면 메모리 H2 로 뜬다.
+  # Stage 4 는 DB 없이, Stage 5 부터 MySQL 을 붙인다.
+  datasource:
+    url: ${DATASOURCE_URL:jdbc:h2:mem:order;DB_CLOSE_DELAY=-1}
+    username: ${DATASOURCE_USERNAME:sa}
+    password: ${DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: order
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.k8sstudy.*"
+
+app:
+  version: ${APP_VERSION:dev}
+
+# actuator 가 probe 엔드포인트를 만들어준다
+#   /actuator/health/liveness   livenessProbe
+#   /actuator/health/readiness  readinessProbe
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+server:
+  port: 8080
