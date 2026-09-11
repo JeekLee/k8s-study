@@ -590,16 +590,28 @@ anti-affinity 보다 세밀하게 "얼마나 치우쳐도 되는가"를 정한�
 
 ---
 
-## 5. `cordon` · `drain` · `uncordon`
+## 5. 노드를 잠시 빼두기 — `cordon` · `drain` · `uncordon`
 
-노드를 점검하거나 업그레이드할 때 쓴다. **CKA 단골이다.**
+### 5-1. 왜 필요한가
 
-```bash
-kubectl create deployment web --image=nginx --replicas=4    # 없으면 만들고
-kubectl get pods -o wide
-```
+노드를 만져야 할 때가 온다. **커널을 올리고 재부팅**해야 하거나,
+**쿠버네티스를 업그레이드**해야 하거나, **디스크가 이상해서 조사**해야 한다.
 
-### cordon — 새 파드만 막는다
+그냥 재부팅해버리면 그 노드의 파드가 전부 갑자기 죽는다.
+ReplicaSet 이 새로 만들어주긴 하지만 **그동안 서비스가 끊긴다.**
+
+그래서 **미리 비우고 나서** 만진다. 그 절차가 이 세 명령이다.
+
+| 명령 | 하는 일 | 비유 |
+|---|---|---|
+| **`cordon`** | 새 파드가 **들어오지 못하게** 막는다 | 통제선을 친다 |
+| **`drain`** | cordon + **기존 파드를 내보낸다** | 건물을 비운다 |
+| **`uncordon`** | 통제선을 **푼다** | 다시 받는다 |
+
+> `cordon` 은 경찰 통제선(police cordon)의 그 단어다.
+> **막는 것이지 치우는 것이 아니다.**
+
+### 5-2. `cordon` — 새로 들어오는 것만 막는다
 
 ```bash
 kubectl cordon k2-w1
@@ -607,9 +619,25 @@ kubectl get nodes
 # k2-w1   Ready,SchedulingDisabled   <none>
 ```
 
-**기존 파드는 그대로 있다.** 새로 배치되는 것만 피해간다.
+**기존 파드는 그대로 돌아간다.** 아무 일도 일어나지 않은 것처럼 보인다.
 
-### drain — 파드를 비운다
+확인해보자. 지금 `web` 이 6개인데 10개로 늘려본다.
+
+```bash
+kubectl scale deployment web --replicas=10
+kubectl get pods -l app=web -o wide | awk '{print $7}' | sort | uniq -c
+```
+
+**새로 생긴 4개가 전부 `k2-w2` 로 간다.** `k2-w1` 의 기존 3개는 그대로다.
+
+스케줄러의 `NodeUnschedulable` 필터가 `k2-w1` 을 후보에서 빼기 때문이다.
+→ [`notes/kubernetes/scheduler.md`](../../notes/kubernetes/scheduler.md)
+
+```bash
+kubectl scale deployment web --replicas=6     # 되돌린다
+```
+
+### 5-3. `drain` — 비운다
 
 ```bash
 kubectl drain k2-w1 --ignore-daemonsets
@@ -617,28 +645,123 @@ kubectl drain k2-w1 --ignore-daemonsets
 
 | 옵션 | 왜 필요한가 |
 |---|---|
-| `--ignore-daemonsets` | `calico-node`, `kube-proxy` 는 DaemonSet 이라 옮길 수 없다. 없으면 오류 |
-| `--delete-emptydir-data` | `emptyDir` 볼륨을 쓰는 파드가 있으면 필요 |
-| `--force` | ReplicaSet 등에 속하지 않은 단독 파드가 있으면 필요 (지워진다) |
+| `--ignore-daemonsets` | `calico-node`·`kube-proxy` 는 **DaemonSet 이라 옮길 수 없다.** 노드마다 하나씩 있어야 하는 것이라 다른 노드로 보내는 개념이 없다. 없으면 오류로 멈춘다 |
+| `--delete-emptydir-data` | `emptyDir` 을 쓰는 파드가 있으면 필요. **그 데이터는 사라진다** |
+| `--force` | ReplicaSet 등에 속하지 않은 **단독 파드**가 있으면 필요. 이건 다시 안 만들어지므로 **그냥 없어진다** |
 
 ```bash
-kubectl get pods -o wide          # k2-w1 의 파드가 k2-w2 로 옮겨갔다
-kubectl get nodes                 # k2-w1 은 SchedulingDisabled 유지
+kubectl get pods -o wide
 ```
 
-> **`drain`은 `cordon`을 포함한다.** 비우기만 하고 다시 받으면 의미가 없으니까.
+**`k2-w1` 의 파드가 `k2-w2` 로 넘어가 있다.**
 
-### uncordon — 되돌린다
+> ⚠️ **파드가 "옮겨간" 것이 아니다.**
+> 원래 파드는 **지워지고**, ReplicaSet 이 부족해진 것을 알아채고 **새로 만든다.**
+> 그 새 파드를 스케줄러가 배치한 것이다.
+>
+> 그래서 **IP 가 바뀌고, 컨테이너 안의 상태는 전부 사라진다.**
+> `kubectl get pods` 로 보면 이름부터 다르다.
+
+`drain` 은 그냥 삭제가 아니라 **Eviction API** 를 호출한다.
+이 경로라야 PodDisruptionBudget 이 검사된다 — [Stage 7](stage-07-scheduling-ops.md) 에서 다룬다.
+
+> **`drain` 은 `cordon` 을 포함한다.** 비우기만 하고 다시 받으면 의미가 없으니까.
+
+### 5-4. `uncordon` — 다시 받는다
 
 ```bash
 kubectl uncordon k2-w1
-kubectl get nodes                 # Ready 로 복귀
+kubectl get nodes                # Ready 로 복귀
+kubectl get pods -o wide         # 파드는 여전히 k2-w2 에 몰려 있다
 ```
 
-**이미 옮겨간 파드는 돌아오지 않는다.** 스케줄러는 되돌리지 않는다.
-새로 만들어지는 파드부터 다시 배치된다.
+**이미 옮겨간 파드는 돌아오지 않는다.** 스케줄러는 재배치를 하지 않는다.
+새로 만들어지는 파드부터 다시 `k2-w1` 에 갈 수 있다.
 
----
+```bash
+kubectl rollout restart deployment web    # 전부 새로 만들면 다시 분산된다
+kubectl get pods -l app=web -o wide | awk '{print $7}' | sort | uniq -c
+```
+
+### 5-5. 실제로 쓰는 상황
+
+#### ① 노드 재부팅 — 가장 흔하다
+
+```bash
+kubectl drain k2-w1 --ignore-daemonsets --delete-emptydir-data
+ssh k2-w1 'sudo reboot'
+# 올라온 뒤
+kubectl uncordon k2-w1
+```
+
+Stage 1 에서 커널이 갱신돼 호스트를 재부팅했던 것을, **클러스터 노드에 할 때**의 절차다.
+
+#### ② 클러스터 업그레이드
+
+노드를 **하나씩** 순회한다. 한꺼번에 하면 서비스가 끊긴다.
+
+```
+drain → kubeadm upgrade node → kubelet 재시작 → uncordon → 다음 노드
+```
+
+[Stage 10](stage-10-cka-domains.md) 에서 실제로 한다. **CKA 단골 문제다.**
+
+#### ③ 문제 노드 격리 — `cordon` 만 쓴다
+
+디스크가 이상하거나 네트워크가 불안정한 것 같을 때.
+
+```bash
+kubectl cordon k2-w1        # 더 이상 새 파드를 보내지 않는다
+```
+
+**`drain` 까지 하지 않는 이유** — 파드를 치우면 증거가 사라진다.
+현재 돌고 있는 파드의 로그와 상태를 그대로 두고 조사해야 한다.
+**확산은 막되 현장은 보존한다.**
+
+#### ④ 노드 제거
+
+```bash
+kubectl drain k2-w1 --ignore-daemonsets --delete-emptydir-data
+kubectl delete node k2-w1        # 클러스터에서 제외
+# 그다음 VM 을 지우거나 인스턴스를 반납
+```
+
+`drain` 없이 `delete node` 를 하면 파드가 갑자기 사라진다.
+
+#### ⑤ 노드를 비우고도 특정 파드는 남기고 싶을 때
+
+`drain` 은 전부 내보낸다. 일부만 남기려면 `cordon` 후 직접 지운다.
+
+```bash
+kubectl cordon k2-w1
+kubectl delete pod <옮기고 싶은 것> -n <네임스페이스>
+```
+
+### 5-6. 이 단계에서 해볼 것
+
+```bash
+# ① cordon — 새 파드만 막힌다
+kubectl cordon k2-w1
+kubectl scale deployment web --replicas=10
+kubectl get pods -l app=web -o wide | awk 'NR>1{print $7}' | sort | uniq -c
+kubectl scale deployment web --replicas=6
+
+# ② drain — 기존 파드가 빠진다
+kubectl drain k2-w1 --ignore-daemonsets
+kubectl get pods -o wide
+
+# ③ uncordon — 돌아오지 않는다
+kubectl uncordon k2-w1
+kubectl get pods -o wide
+
+# ④ 새로 만들면 다시 분산된다
+kubectl rollout restart deployment web
+kubectl get pods -l app=web -o wide | awk 'NR>1{print $7}' | sort | uniq -c
+```
+
+**②에서 `sized` 파드가 어떻게 되는지 눈여겨볼 것.**
+`k2-w2` 에 이미 2개가 있어 CPU 여유가 2 인데, `k2-w1` 에서 밀려난 1개가
+들어갈 자리가 있는지 — 자원과 축출이 만나는 지점이다.
 
 ## 6. 노드 장애 시뮬레이션
 
