@@ -159,7 +159,7 @@ kubectl scale deployment loadgen --replicas=20     # 동시 20
 
 ## 2. ① 스케일업 — Parallel Query
 
-**샤딩보다 먼저 한다.** 한 인스턴스에서 32코어를 다 쓸 수 있는데
+**샤딩보다 먼저 한다.** 한 인스턴스에서 워커의 12코어를 다 쓸 수 있는데
 복잡도를 떠안으면 손해이기 때문이다.
 
 ```sql
@@ -176,18 +176,19 @@ SELECT * FROM v$pq_sesstat WHERE statistic = 'Queries Parallelized';
 SELECT degree FROM v$px_session WHERE sid = SYS_CONTEXT('USERENV','SID');
 ```
 
-**DOP 1 → 2 → 4 → 8 → 16 → 32 로 올리며 지연을 기록한다.**
+**DOP 1 → 2 → 4 → 8 → 12 로 올리며 지연을 기록한다.**
+워커가 12 vCPU 이므로 12가 상한이다. 그 이상을 보려면 VM 을 더 키워야 한다.
 
 파티셔닝을 더하면 파티션별 병렬 스캔이 된다.
 
 ```sql
-ALTER TABLE docs PARALLEL 16;
+ALTER TABLE docs PARALLEL 12;
 -- 해시 파티셔닝 후 partition-wise 병렬
 ```
 
 ### ⚠️ `limits.cpu` 가 PQ 를 막는다
 
-컨테이너에 `limits.cpu: 4` 를 걸면 **DOP 를 16으로 줘도 4코어 분량만 돈다.**
+컨테이너에 `limits.cpu: 4` 를 걸면 **DOP 를 12로 줘도 4코어 분량만 돈다.**
 cgroup 이 스로틀링하기 때문이다.
 
 ```bash
@@ -242,7 +243,26 @@ affinity:
         topologyKey: kubernetes.io/hostname
 ```
 
-**샤드 2 → 4 → 8 로 늘리며 지연을 기록하고 ②의 PQ 곡선과 겹쳐 본다.**
+### 자원 배분 — 워커 2대 × 12 vCPU / 96 GiB
+
+샤드를 늘리면 **인스턴스당 몫이 줄어든다.** 총량은 그대로다.
+
+| 샤드 | 워커당 | 인스턴스당 `cpu` | 인스턴스당 `memory` | 비고 |
+|---|---|---|---|---|
+| 2 | 1개 | 12 | 32 GiB | 노드를 독점 |
+| 4 | 2개 | 6 | 32 GiB | |
+| 6 | 3개 | 4 | 24 GiB | SGA 가 작아진다 |
+| 8 | 4개 | 3 | 16 GiB | **SGA 가 너무 작아 비교가 무의미해질 수 있다** |
+
+> ⭐ **여기에 이 실험의 함정이 있다.** 샤드를 늘리면 데이터는 1/N 로 줄지만
+> **인스턴스당 자원도 1/N 로 준다.** 총 자원이 고정된 상태에서 나누는 것이므로,
+> 순수한 "확장 효과"가 아니라 **분할 효과**를 보는 것이다.
+>
+> 진짜 스케일아웃은 **자원을 추가**할 때 나온다 —
+> 그것이 [Stage 9](stage-09-cross-host.md) 에서 k8s-1 의 워커가 합류하는 의미다.
+> Stage 5 에서는 **"나눠도 손해가 없는가"** 를 본다.
+
+**샤드 2 → 4 → 6 으로 늘리며 지연을 기록하고 ②의 PQ 곡선과 겹쳐 본다.**
 
 ---
 
@@ -385,6 +405,7 @@ Stage 10  HA 완성 후 재측정 → 개선 폭 확인
 | Oracle EE 라이선스 범위 | **컨테이너는 호스트 전체 코어 기준**이 일반적. k8s-1(16) + k8s-2(32) = 48코어가 대상이 될 수 있다 |
 | HEracles 배포 방식 | 커스텀 이미지에 포함 vs initContainer 설치 |
 | 데이터셋 | 행 수·암호문 크기. **풀스캔 시간이 측정 가능한 범위**여야 한다 |
+| 노드 자원 | 워커 12 vCPU / 96 GiB / 데이터 디스크 500 GB — [Stage 4 §0](stage-04-workloads.md) 에서 확장 |
 | 부하 생성기 이미지 | `apps/loadgen` 으로 추가 예정 |
 
 ## 자주 막히는 곳

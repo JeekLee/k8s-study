@@ -47,6 +47,8 @@ graph TB
 
 ## 완료 기준
 
+- [ ] 워커가 **12 vCPU / 96 GiB** 로 늘어났고 kubelet 이 그 값을 보고한다
+- [ ] 워커에 **데이터 디스크 500 GB** 가 붙었다
 - [ ] 내가 만든 이미지를 클러스터가 **GHCR 에서 받아온다**
 - [ ] Oracle 파드를 지워도 **데이터가 남아 있다**
 - [ ] `oracle-0.oracle` 이라는 **고정된 이름**으로 접속된다
@@ -54,6 +56,164 @@ graph TB
 - [ ] 접속 정보가 **Secret 으로 주입**된다 (매니페스트에 평문 없음)
 - [ ] DB 파드가 **`Guaranteed` QoS** 다
 - [ ] NetworkPolicy 로 **허용하지 않은 파드는 못 붙는다**
+
+---
+
+## 0. 노드 자원 확장 — Oracle EE 가 들어갈 자리를 만든다
+
+**Stage 3 까지의 VM 스펙으로는 Oracle EE 가 뜨지 않는다.** 먼저 늘린다.
+
+### 0-1. 현재 상태 (2026-09-14 측정)
+
+```
+호스트 k8s-2   32 vCPU / 251 GiB / 3.8 TB
+할당됨         10 vCPU /  20 GiB          ← 31% / 8% 만 쓰고 있다
+```
+
+| VM | vCPU | 메모리 | 루트 디스크 |
+|---|---|---|---|
+| `k2-cp1` | 2 | 4 GiB | 38 GB |
+| `k2-w1` | 4 | 8 GiB | 38 GB |
+| `k2-w2` | 4 | 8 GiB | 38 GB |
+
+문제가 둘이다.
+
+- **메모리** — Oracle EE 한 인스턴스에 SGA + PGA 로 수십 GiB 가 필요한데 워커가 8 GiB 다
+- **디스크** — 루트가 38 GB 다. **EE 이미지만 수 GB** 인데 여기에 PVC 까지 얹을 수 없다
+
+### 0-2. 재배치
+
+| VM | vCPU | 메모리 | 루트 | **데이터 디스크** |
+|---|---|---|---|---|
+| `k2-cp1` | **4** | **8 GiB** | 38 GB | — |
+| `k2-w1` | **12** | **96 GiB** | 38 GB | **500 GB** |
+| `k2-w2` | **12** | **96 GiB** | 38 GB | **500 GB** |
+| 합계 | **28** | **200 GiB** | | 1 TB |
+| 호스트 잔여 | 4 | 51 GiB | | 2.8 TB |
+
+**왜 워커당 12 vCPU 인가** — [Stage 5](stage-05-db-scaling.md) 에서
+Parallel Query 의 DOP 를 `1 → 2 → 4 → 8 → 12` 로 올리며 곡선을 그린다.
+**점이 다섯 개는 있어야 꺾이는 지점이 보인다.**
+
+**왜 96 GiB 인가** — Oracle 인스턴스 하나에 32 GiB (SGA 24 + PGA 6 + 여유) 를 잡으면
+**두 개까지 올라간다.** Stage 5 의 샤드 4개(워커당 2개) 구성이 가능해진다.
+
+> **데이터 디스크를 따로 붙이는 이유.** 루트를 키우는 것보다
+> 기존 qcow2 체인을 건드리지 않아 안전하고, **Stage 5 에서 I/O 를 따로 관찰**하기 좋다.
+> qcow2 는 희소(sparse) 파일이라 500 GB 로 만들어도 쓴 만큼만 차지한다.
+
+> ⚠️ **라이선스는 VM 스펙으로 줄어들지 않는다.** Oracle 의 하드 파티셔닝 정책상
+> 일반 KVM/libvirt 는 인정되지 않는 것이 보통이라, **호스트 32코어 전체**가
+> 계산 대상이 될 수 있다. 사내 라이선스 담당자에게 확인해둘 것.
+
+### 0-3. vCPU · 메모리 변경 — 종료하고 한다
+
+**실행 중에는 바꿀 수 없다.** 순서대로 한 대씩.
+
+```bash
+# k8s-2 호스트에서
+D=k2-w1                       # k2-w2, k2-cp1 도 같은 방식
+
+sudo virsh shutdown $D
+until [ "$(sudo virsh domstate $D)" = "shut off" ]; do sleep 2; done
+
+sudo virsh setmaxmem  $D 98304M --config     # 96 GiB. maximum 을 먼저
+sudo virsh setmem     $D 98304M --config
+sudo virsh setvcpus   $D 12 --config --maximum
+sudo virsh setvcpus   $D 12 --config
+
+sudo virsh start $D
+```
+
+| VM | `setmaxmem` / `setmem` | `setvcpus` |
+|---|---|---|
+| `k2-cp1` | `8192M` | `4` |
+| `k2-w1` | `98304M` | `12` |
+| `k2-w2` | `98304M` | `12` |
+
+> ⚠️ **`--maximum` 을 먼저 올려야 한다.** 현재값은 최대값을 넘을 수 없다.
+> 순서를 바꾸면 `requested vcpus is greater than max allowable` 이 난다.
+
+> ⚠️ **한 대씩 한다.** 세 대를 동시에 내리면 클러스터가 통째로 멈춘다.
+> 워커 하나를 내릴 때는 먼저 비워두는 것이 정석이다 — Stage 3 에서 한 그대로다.
+> ```bash
+> kubectl drain k2-w1 --ignore-daemonsets --delete-emptydir-data
+> # ... 재부팅 ...
+> kubectl uncordon k2-w1
+> ```
+
+### 0-4. 데이터 디스크 추가 — 워커 두 대
+
+```bash
+# k8s-2 호스트에서
+D=k2-w1
+sudo qemu-img create -f qcow2 /var/lib/libvirt/images/$D-data.qcow2 500G
+
+sudo virsh attach-disk $D   /var/lib/libvirt/images/$D-data.qcow2 vdb   --driver qemu --subdriver qcow2 --targetbus virtio --persistent
+```
+
+VM 안에서 포맷하고 마운트한다. **local-path-provisioner 가 쓰는 경로**에 붙인다.
+
+```bash
+# VM 안에서
+lsblk                                   # vdb 가 보이는지
+sudo mkfs.ext4 -L k8s-data /dev/vdb
+sudo mkdir -p /opt/local-path-provisioner
+
+# UUID 로 고정한다 — 장치 이름은 순서가 바뀔 수 있다
+UUID=$(sudo blkid -s UUID -o value /dev/vdb)
+echo "UUID=$UUID /opt/local-path-provisioner ext4 defaults 0 2" | sudo tee -a /etc/fstab
+sudo mount -a
+df -h /opt/local-path-provisioner       # 500G 가 보이면 성공
+```
+
+> ⚠️ **`/dev/vdb` 로 fstab 에 적지 않는다.** 디스크를 더 붙이면 이름이 밀릴 수 있고,
+> 그러면 부팅이 실패한다. **UUID 를 쓴다.**
+
+> **`--persistent` 를 빠뜨리면** 재부팅 후 디스크가 사라진다.
+> 실행 중인 도메인과 설정 파일 양쪽에 반영하는 옵션이다.
+
+### 0-5. 확인
+
+```bash
+# 호스트에서
+for d in k2-cp1 k2-w1 k2-w2; do
+  printf "%-8s vCPU=%s MEM=%sMiB
+" "$d"     "$(sudo virsh dominfo $d | awk '/CPU\(s\)/{print $2}')"     "$(( $(sudo virsh dominfo $d | awk '/Max memory/{print $3}') / 1024 ))"
+done
+```
+
+```bash
+# 클러스터에서 — kubelet 이 늘어난 자원을 보고하는지
+kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory
+```
+
+**여기 숫자가 안 바뀌면 kubelet 이 아직 옛 값을 들고 있는 것이다.** 재시작한다.
+
+### 0-6. (선택) HugePages — Oracle 이 권장한다
+
+큰 SGA 를 쓸 때 4 KiB 페이지로는 페이지 테이블 관리 비용이 커진다.
+**Stage 5 에서 성능을 측정할 것이므로 영향이 있다.**
+
+```bash
+# VM 안에서 — 2 MiB × 13312 = 26 GiB
+echo 'vm.nr_hugepages = 13312' | sudo tee /etc/sysctl.d/99-hugepages.conf
+sudo sysctl --system
+grep Huge /proc/meminfo
+sudo systemctl restart kubelet          # 용량 재인식
+```
+
+```bash
+kubectl describe node k2-w1 | grep -A6 Capacity      # hugepages-2Mi 가 0 이 아니게 된다
+```
+
+> Stage 3 에서 `hugepages-1Gi`, `hugepages-2Mi` 가 전부 0 이던 것을 봤다.
+> **그때는 쓸 일이 없어서 0 이었고, 여기서 처음으로 값이 생긴다.**
+
+> ⚠️ **HugePages 는 예약되는 즉시 일반 메모리에서 빠진다.** 96 GiB 중 26 GiB 가
+> HugePages 전용이 되므로, 다른 파드가 쓸 수 있는 메모리는 70 GiB 다.
+> Oracle 쪽에서도 `USE_LARGE_PAGES` 설정이 필요하다. **처음에는 건너뛰고,
+> Stage 5 에서 성능이 기대에 못 미칠 때 돌아와도 된다.**
 
 ---
 
@@ -207,8 +367,8 @@ spec:
               valueFrom:
                 secretKeyRef: { name: oracle-secret, key: password }
           resources:
-            requests: { cpu: "4", memory: 16Gi }
-            limits:   { cpu: "4", memory: 16Gi }     # ← Guaranteed. 7절 참고
+            requests: { cpu: "8", memory: 32Gi }
+            limits:   { cpu: "8", memory: 32Gi }     # ← Guaranteed. 7절 참고
           volumeMounts:
             - { name: data, mountPath: /opt/oracle/oradata }
           startupProbe:                               # ← 5절 참고
@@ -463,8 +623,14 @@ Stage 3 에서 `requests`·`limits` 와 QoS 를 봤다. 여기서는 **실제로
 
 ```yaml
 resources:
-  requests: { cpu: "4", memory: 16Gi }
-  limits:   { cpu: "4", memory: 16Gi }     # requests == limits
+  requests: { cpu: "8", memory: 32Gi }
+  limits:   { cpu: "8", memory: 32Gi }     # requests == limits
+```
+
+**12 vCPU / 96 GiB 워커에 하나가 들어가고 절반이 남는다.**
+Stage 5 에서 샤드를 둘로 늘릴 때 같은 노드에 하나 더 올릴 수 있는 크기다.
+
+```yaml
 ```
 
 ```bash
@@ -561,7 +727,11 @@ Stage 3 에서 출력을 못 남겨 기록이 반쪽이 됐다.
 | `exec format error` | 맥에서 빌드한 arm64 이미지. Actions 로 빌드할 것 |
 | 파드가 계속 재시작 | **`startupProbe` 가 없다.** Oracle 초기화 시간을 못 기다린 것 |
 | `OOMKilled` | SGA/PGA 합이 `limits.memory` 를 넘는다 |
-| PVC 가 `Pending` | StorageClass 가 있는가. `kubectl get sc` |
+| PVC 가 `Pending` | StorageClass 가 있는가. `kubectl get sc`. **데이터 디스크를 붙였는가** |
+| 노드 용량이 안 늘어남 | kubelet 재시작. `virsh dominfo` 로 VM 쪽부터 확인 |
+| `requested vcpus is greater than max` | `setvcpus --maximum` 을 먼저 해야 한다 |
+| 재부팅하니 데이터 디스크가 없음 | `attach-disk` 에 `--persistent` 를 빠뜨렸다 |
+| VM 이 부팅 실패 | fstab 에 `/dev/vdb` 를 적었다. UUID 로 바꾼다 |
 | 파드가 특정 노드에만 뜸 | local-path 는 노드에 묶인다. 정상 |
 | `Running` 인데 접속 거부 | 초기화 중. `kubectl get endpoints` 가 비어 있을 것 |
 | `HERACLES_MATCH` 가 없다는 오류 | 확장이 로드되지 않았다. 설치 방식을 확인 |
