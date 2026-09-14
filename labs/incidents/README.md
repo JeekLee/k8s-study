@@ -5,6 +5,7 @@
 | 날짜 | 내용 |
 |---|---|
 | [2026-09-10](2026-09-10-terminfo-xterm-ghostty.md) | 원격에서 `clear` 실패 — terminfo에 `xterm-ghostty` 없음 |
+| [2026-09-14](2026-09-14-delete-node-kubelet-rejoin.md) | `delete node` 후 되살리기 — kubelet 재시작이면 충분 |
 
 ## 형식
 
