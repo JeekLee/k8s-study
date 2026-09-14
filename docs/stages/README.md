@@ -7,7 +7,7 @@
 | 0 | [기반 개념과 진단 도구](stage-00-baseline.md) | ✅ 완료 |
 | 1 | [가상화 기반](stage-01-virtualization.md) | ✅ 완료 |
 | 2 | [첫 클러스터](stage-02-first-cluster.md) | ✅ 완료 |
-| 3 | [다중 노드](stage-03-multi-node.md) | 📖 절차 작성 완료 |
+| 3 | [다중 노드](stage-03-multi-node.md) | ✅ 완료 |
 | 4 | [워크로드와 서비스](stage-04-workloads.md) | 📖 절차 작성 완료 |
 | 5 | [데이터 계층](stage-05-data-layer.md) | 📝 계획 수준 |
 | 6 | [DB 확장과 로드밸런싱](stage-06-db-scaling.md) | 📝 계획 수준 |

@@ -29,6 +29,7 @@ labs/
 | 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ⚠️ 부분 — 3·4단계 Stage 9로 이월 |
 | 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ✅ 완료 |
 | 2 | [`stage-02-first-cluster.md`](stage-02-first-cluster.md) | ✅ 완료 |
+| 3 | [`stage-03-multi-node.md`](stage-03-multi-node.md) | ✅ 거의 완료 — 4-6·스냅샷 미실시 |
 | 3 | | 🔄 진행 중 |
 | 4~7 | | 애플리케이션 단계 |
 | 8~11 | [`drills/`](drills/) 포함 | |

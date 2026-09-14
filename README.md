@@ -9,7 +9,7 @@ CKA 대비용 kubeadm 클러스터를 직접 설계·구축하며 학습하는 �
 | 0 | [기반 개념과 진단 도구](docs/stages/stage-00-baseline.md) | ✅ 완료 |
 | 1 | [가상화 기반](docs/stages/stage-01-virtualization.md) — libvirt, VM 3대, 스냅샷 | ✅ 완료 |
 | 2 | [첫 클러스터](docs/stages/stage-02-first-cluster.md) — 단일 노드 + HAProxy | ✅ 완료 |
-| 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | 🔄 진행 중 |
+| 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | ✅ 완료 |
 | 4 | [워크로드와 서비스](docs/stages/stage-04-workloads.md) — 이미지·Deployment·Service·Ingress | ⬜ |
 | 5 | [데이터 계층](docs/stages/stage-05-data-layer.md) — StatefulSet·PVC·NetworkPolicy | ⬜ |
 | 6 | [DB 확장과 로드밸런싱](docs/stages/stage-06-db-scaling.md) — Oracle·HEracles·샤딩·LB | ⬜ |
