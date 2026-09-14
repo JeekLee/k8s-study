@@ -13,6 +13,7 @@ notes/
 │   ├── diagnosis/  진단 명령 (번호 = 확인 순서)
 │   └── reference/  채택한 기술과 판단 근거
 ├── kubernetes/   컴포넌트별 정리
+├── oracle/       데이터 계층 — Oracle · HEracles
 └── infra/        쿠버네티스는 아니지만 필요한 것들
 ```
 
@@ -20,6 +21,7 @@ notes/
 |---|---|
 | [`network/`](network/) | VCN, 노드 주소 문제, 진단 명령, WireGuard |
 | [`kubernetes/`](kubernetes/) | etcd 등 컴포넌트 |
+| [`oracle/`](oracle/) | 이미지 받기, Parallel Query, 수평 확장 |
 | [`infra/`](infra/) | HAProxy, libvirt/KVM, cloud-init |
 
 ## 지금 읽어야 할 것
