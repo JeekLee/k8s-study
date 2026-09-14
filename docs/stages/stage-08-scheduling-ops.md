@@ -1,11 +1,11 @@
-# Stage 7 — 스케줄링과 운영
+# Stage 8 — 스케줄링과 운영
 
 | | |
 |---|---|
 | 예상 소요 | 2~3일 |
-| 선행 | [Stage 6](stage-06-event-driven.md) |
+| 선행 | [Stage 7](stage-07-event-driven.md) |
 | 대상 | 앞 단계에서 올린 전체 스택 |
-| 기록할 곳 | `labs/stage-07-scheduling-ops.md` |
+| 기록할 곳 | `labs/stage-08-scheduling-ops.md` |
 
 > 📝 계획 수준. 진입할 때 실행 절차로 확장한다.
 

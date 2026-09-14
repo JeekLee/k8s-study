@@ -6,7 +6,7 @@
 
 | 영역 | 성격 | 시제 | 예시 |
 |---|---|---|---|
-| [`docs/`](../docs/) | 설계와 계획 | 앞으로 할 것 | "Stage 8에서 MTU를 1370으로 맞춘다" |
+| [`docs/`](../docs/) | 설계와 계획 | 앞으로 할 것 | "Stage 9에서 MTU를 1370으로 맞춘다" |
 | [`notes/`](../notes/) | 개념과 참고 자료 | 항상 참인 것 | "`AllowedIPs`는 수신 필터도 겸한다" |
 | **`labs/`** | **실습 결과** | **한 것** | "MTU 1500으로 두고 돌렸더니 이미지 pull만 멈췄다" |
 
@@ -19,14 +19,14 @@
 labs/
 ├── stage-NN-주제.md    Stage별 수행 기록
 ├── incidents/          예기치 않게 겪은 문제
-└── drills/             의도적으로 고장내고 복구하는 훈련 (Stage 10)
+└── drills/             의도적으로 고장내고 복구하는 훈련 (Stage 11)
 ```
 
 ## 진행 상황
 
 | Stage | 기록 | 상태 |
 |---|---|---|
-| 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ⚠️ 부분 — 3·4단계 Stage 8로 이월 |
+| 0 | [`stage-00-baseline.md`](stage-00-baseline.md) | ⚠️ 부분 — 3·4단계 Stage 9로 이월 |
 | 1 | [`stage-01-virtualization.md`](stage-01-virtualization.md) | ✅ 완료 |
 | 2 | [`stage-02-first-cluster.md`](stage-02-first-cluster.md) | ✅ 완료 |
 | 3 | | 🔄 진행 중 |

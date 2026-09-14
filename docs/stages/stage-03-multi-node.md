@@ -45,7 +45,7 @@ graph TB
 **3노드 클러스터.** 파드가 워커에 배치되고, 노드를 비우면 다른 노드로 옮겨간다.
 
 세 노드의 kubelet이 **모두 HAProxy를 거쳐** apiserver에 접속한다.
-호스트가 하나뿐이라 **장애 도메인도 하나**다 — Stage 8에서 k8s-1이 합류하며 둘이 된다.
+호스트가 하나뿐이라 **장애 도메인도 하나**다 — Stage 9에서 k8s-1이 합류하며 둘이 된다.
 
 | 추가된 것 | 어디에 |
 |---|---|
@@ -496,7 +496,7 @@ ls /sys/fs/cgroup/kubepods.slice/
 **그 파드들이 BestEffort 등급이기 때문**이다.
 
 > QoS 를 실제로 활용하는 것 — DB 는 `Guaranteed`, 배치는 `BestEffort` 로 두어
-> 축출 순서를 설계하는 것 — 은 [Stage 7](stage-07-scheduling-ops.md) 에서 다룬다.
+> 축출 순서를 설계하는 것 — 은 [Stage 8](stage-08-scheduling-ops.md) 에서 다룬다.
 > 여기서는 **`requests` 를 적고 안 적고가 등급까지 바꾼다**는 것만 확인하면 된다.
 
 ### 4-4. 자원이 모자라면 `Pending`
@@ -663,7 +663,7 @@ kubectl get pods -o wide
 > `kubectl get pods` 로 보면 이름부터 다르다.
 
 `drain` 은 그냥 삭제가 아니라 **Eviction API** 를 호출한다.
-이 경로라야 PodDisruptionBudget 이 검사된다 — [Stage 7](stage-07-scheduling-ops.md) 에서 다룬다.
+이 경로라야 PodDisruptionBudget 이 검사된다 — [Stage 8](stage-08-scheduling-ops.md) 에서 다룬다.
 
 > **`drain` 은 `cordon` 을 포함한다.** 비우기만 하고 다시 받으면 의미가 없으니까.
 
@@ -704,7 +704,7 @@ Stage 1 에서 커널이 갱신돼 호스트를 재부팅했던 것을, **클러
 drain → kubeadm upgrade node → kubelet 재시작 → uncordon → 다음 노드
 ```
 
-[Stage 10](stage-10-cka-domains.md) 에서 실제로 한다. **CKA 단골 문제다.**
+[Stage 11](stage-11-cka-domains.md) 에서 실제로 한다. **CKA 단골 문제다.**
 
 #### ③ 문제 노드 격리 — `cordon` 만 쓴다
 
@@ -765,7 +765,7 @@ kubectl get pods -l app=web -o wide | awk 'NR>1{print $7}' | sort | uniq -c
 
 ## 6. 노드 장애 시뮬레이션
 
-**Stage 10 고장 훈련의 예고편이다.** 스냅샷을 먼저 찍어두면 마음이 편하다.
+**Stage 11 고장 훈련의 예고편이다.** 스냅샷을 먼저 찍어두면 마음이 편하다.
 
 ```bash
 # 워커에서
@@ -851,7 +851,7 @@ for vm in k2-cp1 k2-w1 k2-w2; do virsh start $vm; done
 
 - [`labs/`](../../labs/)에 기록
 - 다음: [Stage 4 — 워크로드와 서비스](stage-04-workloads.md)
-  클러스터는 만들었으니 이제 **무언가를 올린다.** 크로스 호스트(Stage 8)는
+  클러스터는 만들었으니 이제 **무언가를 올린다.** 크로스 호스트(Stage 9)는
   돌아가는 앱이 생긴 뒤에 한다 — 그래야 터널이 앱을 깨뜨리는지 검증할 수 있다
 
 ## 자주 막히는 곳

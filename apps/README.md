@@ -49,9 +49,9 @@ sequenceDiagram
 |---|---|---|---|---|
 | [**inventory**](inventory/) | FastAPI | 메모리 → MySQL | 재고 예약·복원 | Stage 4 |
 | [**order**](order/) | Spring Boot | H2 → MySQL | 주문 상태 관리 | Stage 5 |
-| [**payment**](payment/) | Spring Boot 4 | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 6 |
-| [**notification**](notification/) | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 6 |
-| [**web**](web/) | Next 16 | — | 주문 UI | Stage 6 |
+| [**payment**](payment/) | Spring Boot 4 | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 7 |
+| [**notification**](notification/) | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 7 |
+| [**web**](web/) | Next 16 | — | 주문 UI | Stage 7 |
 
 **코드는 전부 미리 만들어 뒀다.** 앱 작성이 목적이 아니므로
 단계마다 코드를 새로 쓰느라 흐름이 끊기지 않게 했다.
@@ -67,7 +67,7 @@ sequenceDiagram
 | `DATABASE_URL` | 메모리 dict (FastAPI) | MySQL |
 | `KAFKA_BOOTSTRAP` | 로그만 남김 | 실제 발행·구독 |
 
-Stage 4 는 아무것도 주지 않고 띄우고, Stage 5 에서 DB 를, Stage 6 에서 Kafka 를 붙인다.
+Stage 4 는 아무것도 주지 않고 띄우고, Stage 5 에서 DB 를, Stage 7 에서 Kafka 를 붙인다.
 **이미지를 다시 빌드하지 않는다** — 12-factor 의 설정 분리를 그대로 따른 것이고,
 "설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
 
@@ -82,7 +82,7 @@ JPA, Outbox 패턴, 트랜잭션 경계가 중요한 영역이다.
 > **Stage 4는 `inventory`(FastAPI)로 시작한다.**
 > 첫 단계의 목적은 "이미지 빌드 → 푸시 → 배포" 루프를 익히는 것이라
 > 빌드가 빠른 쪽이 맞다. Spring 은 JVM 기동·메모리 특성을 다룰
-> Stage 6 에서 들어온다 — `startupProbe` 가 왜 필요한지도 그때 체감된다.
+> Stage 7 에서 들어온다 — `startupProbe` 가 왜 필요한지도 그때 체감된다.
 
 ## 이벤트 계약
 
@@ -106,7 +106,7 @@ JPA, Outbox 패턴, 트랜잭션 경계가 중요한 영역이다.
 processed_events (event_id PK, processed_at)
 ```
 
-**이것을 일부러 빠뜨린 채 컨슈머를 재시작해보는 것**이 Stage 6 의 실습이다.
+**이것을 일부러 빠뜨린 채 컨슈머를 재시작해보는 것**이 Stage 7 의 실습이다.
 재고가 두 번 차감되는 것을 눈으로 본 뒤 멱등성을 넣는다.
 
 ## 저장소 구조
@@ -115,10 +115,10 @@ processed_events (event_id PK, processed_at)
 apps/
   README.md          이 문서 — 도메인 설계와 이벤트 계약
   inventory/         FastAPI — 재고 (Stage 4~)
-  order/             Spring Boot — 주문 (Stage 6~)
-  payment/           Spring Boot — 결제 (Stage 6~)
-  notification/      FastAPI — 알림 (Stage 6~)
-  web/               Next.js — UI (Stage 6~)
+  order/             Spring Boot — 주문 (Stage 7~)
+  payment/           Spring Boot — 결제 (Stage 7~)
+  notification/      FastAPI — 알림 (Stage 7~)
+  web/               Next.js — UI (Stage 7~)
   manifests/         쿠버네티스 매니페스트 (단계별로 쌓인다)
 ```
 

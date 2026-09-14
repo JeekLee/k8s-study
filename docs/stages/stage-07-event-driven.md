@@ -1,11 +1,11 @@
-# Stage 6 — 이벤트 기반 MSA
+# Stage 7 — 이벤트 기반 MSA
 
 | | |
 |---|---|
 | 예상 소요 | 3~5일 |
-| 선행 | [Stage 5](stage-05-data-layer.md) |
+| 선행 | [Stage 6](stage-06-db-scaling.md) |
 | 앱 | Kafka + `order`·`payment`·`inventory`·`notification`·`web` |
-| 기록할 곳 | `labs/stage-06-event-driven.md` |
+| 기록할 곳 | `labs/stage-07-event-driven.md` |
 
 > 📝 계획 수준. 진입할 때 실행 절차로 확장한다.
 

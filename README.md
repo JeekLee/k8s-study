@@ -12,12 +12,13 @@ CKA 대비용 kubeadm 클러스터를 직접 설계·구축하며 학습하는 �
 | 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | 🔄 진행 중 |
 | 4 | [워크로드와 서비스](docs/stages/stage-04-workloads.md) — 이미지·Deployment·Service·Ingress | ⬜ |
 | 5 | [데이터 계층](docs/stages/stage-05-data-layer.md) — StatefulSet·PVC·NetworkPolicy | ⬜ |
-| 6 | [이벤트 기반 MSA](docs/stages/stage-06-event-driven.md) — Kafka·saga·보상 | ⬜ |
-| 7 | [스케줄링과 운영](docs/stages/stage-07-scheduling-ops.md) — HPA·PDB·priority | ⬜ |
-| 8 | [크로스 호스트 라우팅](docs/stages/stage-08-cross-host.md) — WireGuard | ⬜ |
-| 9 | [HA control plane](docs/stages/stage-09-ha.md) — 6노드 완성 | ⬜ |
-| 10 | [CKA 영역별 실습](docs/stages/stage-10-cka-domains.md) | ⬜ |
-| 11 | [시험 대비 마무리](docs/stages/stage-11-exam-prep.md) | ⬜ |
+| 6 | [DB 확장과 로드밸런싱](docs/stages/stage-06-db-scaling.md) — Oracle·HEracles·샤딩·LB | ⬜ |
+| 7 | [이벤트 기반 MSA](docs/stages/stage-07-event-driven.md) — Kafka·saga·보상 | ⬜ |
+| 8 | [스케줄링과 운영](docs/stages/stage-08-scheduling-ops.md) — HPA·PDB·priority | ⬜ |
+| 9 | [크로스 호스트 라우팅](docs/stages/stage-09-cross-host.md) — WireGuard | ⬜ |
+| 10 | [HA control plane](docs/stages/stage-10-ha.md) — 6노드 완성 | ⬜ |
+| 11 | [CKA 영역별 실습](docs/stages/stage-11-cka-domains.md) | ⬜ |
+| 12 | [시험 대비 마무리](docs/stages/stage-12-exam-prep.md) | ⬜ |
 
 전체 계획: [docs/02-roadmap.md](docs/02-roadmap.md)
 
@@ -33,7 +34,7 @@ docs/                        설계와 계획
   00-plan.md                   사전 점검 결과와 설계 결정
   01-network-design.md         네트워크 설계
   02-roadmap.md                학습 로드맵 개요
-  stages/                      단계별 실행 절차 (stage-00 ~ 11)
+  stages/                      단계별 실행 절차 (stage-00 ~ 12)
 
 notes/                       개념과 참고 자료
   network/

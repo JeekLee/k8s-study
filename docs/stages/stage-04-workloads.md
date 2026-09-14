@@ -217,7 +217,7 @@ spec:
 >
 > `requests` 와 `limits` 의 차이, 자원 네 종류, QoS 클래스는
 > [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md) 에 정리했다.
-> Stage 7 에서 QoS 를 실제로 다룬다.
+> Stage 8 에서 QoS 를 실제로 다룬다.
 
 ### 2-3. probe 세 가지
 
@@ -412,7 +412,7 @@ curl -H 'Host: inventory.local' localhost:8080
 > **Ingress vs Gateway API**
 > Ingress 는 오래됐고 기능 확장이 어노테이션에 몰려 벤더마다 다르다.
 > **Gateway API** 가 후계로, 역할 분리(인프라팀 ↔ 앱팀)가 명확하다.
-> CKA v1.35 범위에 Gateway API 가 포함되므로 Stage 10 에서 다시 본다.
+> CKA v1.35 범위에 Gateway API 가 포함되므로 Stage 11 에서 다시 본다.
 
 ---
 
@@ -431,7 +431,7 @@ kubectl rollout history deployment/inventory
 kubectl delete -f apps/manifests/      # 또는 개별 삭제
 ```
 
-> Ingress Controller 는 남겨둔다. Stage 5·6 에서 계속 쓴다.
+> Ingress Controller 는 남겨둔다. Stage 5~7 에서 계속 쓴다.
 
 ---
 

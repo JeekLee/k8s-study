@@ -1,11 +1,11 @@
-# Stage 8 — 크로스 호스트 라우팅
+# Stage 9 — 크로스 호스트 라우팅
 
 | | |
 |---|---|
 | 대상 | k8s-1 + k8s-2 |
 | 예상 소요 | 하루 |
-| 선행 | [Stage 7](stage-07-scheduling-ops.md) |
-| 기록할 곳 | `labs/stage-08-cross-host.md` |
+| 선행 | [Stage 8](stage-08-scheduling-ops.md) |
+| 기록할 곳 | `labs/stage-09-cross-host.md` |
 
 > 📝 계획 수준. 진입 시 확장한다.
 
@@ -13,7 +13,7 @@
 
 두 호스트의 VM이 하나의 사설망처럼 통신한다.
 
-> **앱이 이미 돌고 있는 상태에서 한다.** Stage 4~7 에서 올린 워크로드가
+> **앱이 이미 돌고 있는 상태에서 한다.** Stage 4~8 에서 올린 워크로드가
 > 터널을 깔고 노드를 추가한 뒤에도 정상 동작하는지가 이 단계의 진짜 검증이다.
 > 특히 MTU 문제는 **파드 간 통신이 깨지는 형태**로 나타나므로
 > 빈 클러스터에서는 발견조차 못 한다.
@@ -141,4 +141,4 @@ ens3            9000   ← VCN 내부용 점보 프레임 (실측)
 이미지 pull이나 큰 API 응답이 타임아웃되는 식이라 원인 찾기가 매우 어렵다.
 Stage 2에서 미리 1370으로 잡아둔 이유다.
 
-다음: [Stage 9 — HA control plane](stage-09-ha.md)
+다음: [Stage 10 — HA control plane](stage-10-ha.md)

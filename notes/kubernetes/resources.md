@@ -279,4 +279,4 @@ kubectl get pods -A -o custom-columns=\
 
 - 스케줄러가 `requests` 를 어떻게 쓰나 → [`scheduler.md`](scheduler.md)
 - cgroup 을 누가 관리하나 → [`container-runtime.md`](container-runtime.md)
-- 실습 → [Stage 3](../../docs/stages/stage-03-multi-node.md) · [Stage 7](../../docs/stages/stage-07-scheduling-ops.md)
+- 실습 → [Stage 3](../../docs/stages/stage-03-multi-node.md) · [Stage 8](../../docs/stages/stage-08-scheduling-ops.md)
