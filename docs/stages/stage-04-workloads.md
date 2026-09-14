@@ -48,8 +48,10 @@ graph TB
 ## 완료 기준
 
 - [ ] 워커가 **12 vCPU / 96 GiB** 로 늘어났고 kubelet 이 그 값을 보고한다
-- [ ] 워커에 **데이터 디스크 500 GB** 가 붙었다
+- [ ] 워커에 **데이터 디스크 500 GB** 가 `/data` 로 붙었다
+- [ ] **containerd 가 `/data/containerd`** 를 쓴다 (루트 디스크가 안 찬다)
 - [ ] 내가 만든 이미지를 클러스터가 **GHCR 에서 받아온다**
+- [ ] StorageClass 가 **`/data` 를 쓴다** (루트 디스크가 아니다)
 - [ ] Oracle 파드를 지워도 **데이터가 남아 있다**
 - [ ] `oracle-0.oracle` 이라는 **고정된 이름**으로 접속된다
 - [ ] `HERACLES_MATCH` 쿼리가 결과를 돌려준다
@@ -201,19 +203,19 @@ sudo virsh attach-disk $D \
   --driver qemu --subdriver qcow2 --targetbus virtio --persistent
 ```
 
-VM 안에서 포맷하고 마운트한다. **local-path-provisioner 가 쓰는 경로**에 붙인다.
+VM 안에서 포맷하고 **`/data` 에 마운트한다.** 두 가지를 여기로 옮긴다.
 
 ```bash
 # 📍 워커 VM 안 (k2-w1, k2-w2 각각)
 lsblk                                   # vdb 가 보이는지
 sudo mkfs.ext4 -L k8s-data /dev/vdb
-sudo mkdir -p /opt/local-path-provisioner
+sudo mkdir -p /data
 
 # UUID 로 고정한다 — 장치 이름은 순서가 바뀔 수 있다
 UUID=$(sudo blkid -s UUID -o value /dev/vdb)
-echo "UUID=$UUID /opt/local-path-provisioner ext4 defaults 0 2" | sudo tee -a /etc/fstab
+echo "UUID=$UUID /data ext4 defaults 0 2" | sudo tee -a /etc/fstab
 sudo mount -a
-df -h /opt/local-path-provisioner       # 500G 가 보이면 성공
+df -h /data                             # 500G 가 보이면 성공
 ```
 
 > ⚠️ **`/dev/vdb` 로 fstab 에 적지 않는다.** 디스크를 더 붙이면 이름이 밀릴 수 있고,
@@ -221,6 +223,64 @@ df -h /opt/local-path-provisioner       # 500G 가 보이면 성공
 
 > **`--persistent` 를 빠뜨리면** 재부팅 후 디스크가 사라진다.
 > 실행 중인 도메인과 설정 파일 양쪽에 반영하는 옵션이다.
+
+### ⭐ 0-4-1. containerd 를 데이터 디스크로 옮긴다
+
+**이미지는 루트 디스크에 쌓인다.** 기본값이 `/var/lib/containerd` 이기 때문이다.
+
+```
+워커 루트        38 GB (34 GB 여유)
+Oracle EE 이미지  압축만 3.93 GiB → 풀면 10 GiB 대
+커스텀 이미지     또 그만큼
+```
+
+**태그를 몇 개만 시험해도 루트가 찬다.** 데이터 디스크로 옮긴다.
+
+```bash
+# 📍 워커 VM 안 — 먼저 비우고 한다
+kubectl drain k2-w1 --ignore-daemonsets --delete-emptydir-data     # 📍 k2-cp1 에서 (w2 도 각각)
+
+# 📍 워커 VM 안
+sudo systemctl stop kubelet containerd
+sudo mkdir -p /data/containerd
+sudo rsync -aHAX --info=progress2 /var/lib/containerd/ /data/containerd/
+
+sudo sed -i "s|^root = '/var/lib/containerd'|root = '/data/containerd'|" /etc/containerd/config.toml
+grep "^root" /etc/containerd/config.toml          # /data/containerd 인지 확인
+
+sudo systemctl start containerd kubelet
+```
+
+확인 — **이미지가 그대로 보여야 한다.**
+
+```bash
+# 📍 워커 VM 안
+sudo ctr -n k8s.io images ls | wc -l
+df -h /data /                                     # 사용량이 /data 로 옮겨갔는가
+```
+
+```bash
+# 📍 k2-cp1
+kubectl uncordon k2-w1
+kubectl get pods -o wide                          # 파드가 다시 뜨는가
+```
+
+> **옮긴 뒤 옛 디렉토리를 바로 지우지 않는다.** 며칠 돌려보고 문제 없으면 지운다.
+> ```bash
+> sudo rm -rf /var/lib/containerd.old
+> ```
+
+> `state` 디렉토리(`/run/containerd`)는 tmpfs 라 옮길 필요가 없다.
+> 이미지와 스냅샷만 `root` 에 있다.
+
+### 0-4-2. local-path 용 디렉토리
+
+PVC 가 쓸 경로도 같은 디스크에 만들어 둔다. **StorageClass 는 [§3](#3-저장소--pv--pvc--storageclass) 에서 설치한다.**
+
+```bash
+# 📍 워커 VM 안
+sudo mkdir -p /data/local-path
+```
 
 ### 0-5. 확인
 
@@ -234,8 +294,14 @@ done
 ```
 
 ```bash
+# 📍 워커 VM 안 — 디스크
+df -h / /data
+sudo ctr -n k8s.io images ls | wc -l
+```
+
+```bash
 # 📍 k2-cp1 — kubelet 이 늘어난 자원을 보고하는지
-kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory
+kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory,EPHEMERAL:.status.capacity.ephemeral-storage
 ```
 
 **여기 숫자가 안 바뀌면 kubelet 이 아직 옛 값을 들고 있는 것이다.** 재시작한다.
@@ -495,6 +561,7 @@ spec:
     - metadata: { name: data }
       spec:
         accessModes: [ReadWriteOnce]
+        storageClassName: local-path-retain        # ← §3-4 참고
         resources: { requests: { storage: 100Gi } }
 ```
 
@@ -542,13 +609,82 @@ kubectl exec -it deploy/oracle-client -- sqlplus ...
 온프레미스라 `local-path-provisioner` 를 쓴다.
 **노드의 로컬 디스크를 쓰므로 파드가 그 노드에 묶인다** — 이 제약을 직접 확인한다.
 
+### 3-1. 설치 — 아직 없다
+
 ```bash
 # 📍 k2-cp1
-kubectl get sc                          # StorageClass 가 있는가
+kubectl get sc          # No resources found — 없다
+```
+
+```bash
+# 📍 k2-cp1
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
+kubectl -n local-path-storage get pods
+```
+
+### 3-2. ⚠️ 경로를 `/data` 로 바꾼다
+
+기본값이 `/opt/local-path-provisioner` 인데, **§0-4 에서 데이터 디스크를 `/data` 에 붙였다.**
+안 바꾸면 **38 GB 루트 디스크에 Oracle 데이터가 쌓인다.**
+
+```bash
+# 📍 k2-cp1
+kubectl -n local-path-storage patch configmap local-path-config --type merge -p '{"data":{"config.json":"{\n  \"nodePathMap\":[\n    {\"node\":\"DEFAULT_PATH_FOR_NON_LISTED_NODES\",\"paths\":[\"/data/local-path\"]}\n  ]\n}\n"}}'
+
+kubectl -n local-path-storage rollout restart deploy local-path-provisioner
+kubectl -n local-path-storage get cm local-path-config -o jsonpath='{.data.config\.json}'
+```
+
+### 3-3. 기본 StorageClass 로
+
+설치 직후에는 **기본이 아니다.** PVC 에 `storageClassName` 을 안 적으면 `Pending` 이 된다.
+
+```bash
+# 📍 k2-cp1
+kubectl patch storageclass local-path \
+  -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+kubectl get sc          # local-path (default) 로 보이면 성공
+```
+
+### 3-4. ⚠️ DB 에는 `Retain` 을 쓴다
+
+기본 StorageClass 는 `reclaimPolicy: Delete` 다. **PVC 를 지우면 데이터까지 사라진다.**
+
+```bash
+# 📍 k2-cp1 — DB 전용 StorageClass 를 따로 만든다
+kubectl apply -f - <<'YAML'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path-retain
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+YAML
+```
+
+StatefulSet 의 `volumeClaimTemplates` 에서 이것을 쓴다.
+
+```yaml
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path-retain        # ← 실수로 지워도 남는다
+        resources: { requests: { storage: 100Gi } }
+```
+
+### 3-5. 확인
+
+```bash
+# 📍 k2-cp1
+kubectl get sc
 kubectl get pvc                         # data-oracle-0
 kubectl get pv                          # 자동으로 만들어진 PV
 kubectl get pvc data-oracle-0 -o jsonpath='{.spec.volumeName}'
 ```
+
+> **PVC 가 `Pending` 인데 정상일 수 있다.** `volumeBindingMode: WaitForFirstConsumer` 라
+> **파드가 스케줄되기 전에는 PV 를 만들지 않는다.** 노드가 정해져야 어느 디스크에
+> 만들지 알 수 있기 때문이다. `kubectl describe pvc` 에 `WaitForFirstConsumer` 라고 나온다.
 
 | `accessModes` | 뜻 |
 |---|---|
@@ -850,7 +986,8 @@ Stage 3 에서 출력을 못 남겨 기록이 반쪽이 됐다.
 | `exec format error` | 맥에서 빌드한 arm64 이미지. Actions 로 빌드할 것 |
 | 파드가 계속 재시작 | **`startupProbe` 가 없다.** Oracle 초기화 시간을 못 기다린 것 |
 | `OOMKilled` | SGA/PGA 합이 `limits.memory` 를 넘는다 |
-| PVC 가 `Pending` | StorageClass 가 있는가. `kubectl get sc`. **데이터 디스크를 붙였는가** |
+| PVC 가 `Pending` | `WaitForFirstConsumer` 면 **정상** — 파드가 스케줄돼야 만든다. 아니면 `kubectl get sc` |
+| PVC 가 루트 디스크에 생김 | ConfigMap 경로를 `/data/local-path` 로 안 바꿨다 (§3-2) |
 | 노드 용량이 안 늘어남 | kubelet 재시작. `virsh dominfo` 로 VM 쪽부터 확인 |
 | `requested vcpus is greater than max` | `setvcpus --maximum` 을 먼저 해야 한다 |
 | 재부팅하니 데이터 디스크가 없음 | `attach-disk` 에 `--persistent` 를 빠뜨렸다 |
