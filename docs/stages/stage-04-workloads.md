@@ -57,6 +57,53 @@ graph TB
 - [ ] DB 파드가 **`Guaranteed` QoS** 다
 - [ ] NetworkPolicy 로 **허용하지 않은 파드는 못 붙는다**
 
+## ⭐ 어디서 무엇을 하는가
+
+**이 단계에서 가장 헷갈리는 부분이다.** 기계가 넷 있고 각각 하는 일이 다르다.
+
+```
+맥 (내 노트북)             계정·라이선스 확인만. 클러스터와 무관하다
+ └─ k8s-2 호스트           하이퍼바이저. VM 에 자원을 주는 일만 한다
+     ├─ k2-cp1  VM        kubectl 을 여기서 친다
+     ├─ k2-w1   VM        ← Oracle 이 실제로 도는 곳
+     └─ k2-w2   VM        ← Oracle 이 실제로 도는 곳
+```
+
+| 무엇을 | 어디서 | 왜 |
+|---|---|---|
+| VM 자원 변경 (§0-3) | **k8s-2 호스트** | `virsh` 는 하이퍼바이저 명령이다 |
+| 데이터 디스크 생성·연결 (§0-4) | **k8s-2 호스트** | 위와 같다 |
+| 디스크 포맷·마운트 (§0-4) | **각 워커 VM** | 그 VM 의 파일시스템이다 |
+| HugePages (§0-6) | **각 워커 VM** | 그 VM 의 커널 설정이다 |
+| `docker login` 으로 계정 확인 | **맥** | **라이선스 동의 확인용.** 여기 받은 이미지는 클러스터와 무관 |
+| `kubectl` 전부 | **`k2-cp1`** | kubeconfig 가 여기 있다 |
+| **이미지 받기** | **아무도 안 한다** | 아래 참고 |
+| 미리 받아두기 (선택) | 각 워커 VM | `ctr -n k8s.io` — 이미지가 커서 타임아웃이 날 때만 |
+
+절차는 [`notes/oracle/container-registry.md`](../../notes/oracle/container-registry.md) 에 있다.
+
+### ⭐ 이미지를 사람이 받는 게 아니다
+
+```
+k2-cp1 에서  kubectl apply
+                 │
+                 ▼
+          스케줄러가 워커를 고른다        (k2-w1 또는 k2-w2)
+                 │
+                 ▼
+       그 워커의 kubelet 이 GHCR·Oracle 레지스트리에서
+       imagePullSecret 으로 직접 받아온다
+```
+
+**`docker pull` 하는 단계가 없다.** 그래서 노드에 docker 를 깔 필요도,
+`docker login` 을 할 필요도 없다 — 애초에 이 VM 들에는 docker 가 없다.
+
+맥에서 하는 `docker login` 은 **"내 계정이 이 이미지를 받을 수 있는가"** 를
+미리 확인하는 것뿐이다. 그 결과가 `kubectl create secret` 에 넣을 값이 된다.
+
+> 어느 워커에 뜨는지는 스케줄러가 정한다. 지정하고 싶으면
+> `nodeSelector` 나 `podAntiAffinity` 를 쓴다 — Stage 3 에서 해본 그대로다.
+
 ---
 
 ## 0. 노드 자원 확장 — Oracle EE 가 들어갈 자리를 만든다
@@ -111,7 +158,7 @@ Parallel Query 의 DOP 를 `1 → 2 → 4 → 8 → 12` 로 올리며 곡선을 
 **실행 중에는 바꿀 수 없다.** 순서대로 한 대씩.
 
 ```bash
-# k8s-2 호스트에서
+# 📍 k8s-2 호스트
 D=k2-w1                       # k2-w2, k2-cp1 도 같은 방식
 
 sudo virsh shutdown $D
@@ -145,17 +192,19 @@ sudo virsh start $D
 ### 0-4. 데이터 디스크 추가 — 워커 두 대
 
 ```bash
-# k8s-2 호스트에서
+# 📍 k8s-2 호스트
 D=k2-w1
 sudo qemu-img create -f qcow2 /var/lib/libvirt/images/$D-data.qcow2 500G
 
-sudo virsh attach-disk $D   /var/lib/libvirt/images/$D-data.qcow2 vdb   --driver qemu --subdriver qcow2 --targetbus virtio --persistent
+sudo virsh attach-disk $D \
+  /var/lib/libvirt/images/$D-data.qcow2 vdb \
+  --driver qemu --subdriver qcow2 --targetbus virtio --persistent
 ```
 
 VM 안에서 포맷하고 마운트한다. **local-path-provisioner 가 쓰는 경로**에 붙인다.
 
 ```bash
-# VM 안에서
+# 📍 워커 VM 안 (k2-w1, k2-w2 각각)
 lsblk                                   # vdb 가 보이는지
 sudo mkfs.ext4 -L k8s-data /dev/vdb
 sudo mkdir -p /opt/local-path-provisioner
@@ -176,15 +225,16 @@ df -h /opt/local-path-provisioner       # 500G 가 보이면 성공
 ### 0-5. 확인
 
 ```bash
-# 호스트에서
+# 📍 k8s-2 호스트
 for d in k2-cp1 k2-w1 k2-w2; do
-  printf "%-8s vCPU=%s MEM=%sMiB
-" "$d"     "$(sudo virsh dominfo $d | awk '/CPU\(s\)/{print $2}')"     "$(( $(sudo virsh dominfo $d | awk '/Max memory/{print $3}') / 1024 ))"
+  cpu=$(sudo virsh dominfo $d | awk '/CPU\(s\)/{print $2}')
+  mem=$(sudo virsh dominfo $d | awk '/Max memory/{print $3}')
+  echo "$d  vCPU=$cpu  MEM=$((mem / 1024))MiB"
 done
 ```
 
 ```bash
-# 클러스터에서 — kubelet 이 늘어난 자원을 보고하는지
+# 📍 k2-cp1 — kubelet 이 늘어난 자원을 보고하는지
 kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory
 ```
 
@@ -196,7 +246,7 @@ kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu
 **Stage 5 에서 성능을 측정할 것이므로 영향이 있다.**
 
 ```bash
-# VM 안에서 — 2 MiB × 13312 = 26 GiB
+# 📍 워커 VM 안 — 2 MiB × 13312 = 26 GiB
 echo 'vm.nr_hugepages = 13312' | sudo tee /etc/sysctl.d/99-hugepages.conf
 sudo sysctl --system
 grep Huge /proc/meminfo
@@ -204,6 +254,7 @@ sudo systemctl restart kubelet          # 용량 재인식
 ```
 
 ```bash
+# 📍 k2-cp1
 kubectl describe node k2-w1 | grep -A6 Capacity      # hugepages-2Mi 가 0 이 아니게 된다
 ```
 
@@ -281,7 +332,7 @@ USER oracle
 이미지를 private 으로 두면 클러스터가 인증해야 한다.
 
 ```bash
-# read:packages 권한만 있으면 된다 (pull 전용)
+# 📍 k2-cp1 — read:packages 권한만 있으면 된다 (pull 전용)
 kubectl create secret docker-registry ghcr \
   --docker-server=ghcr.io \
   --docker-username=jeeklee \
@@ -308,6 +359,7 @@ spec:
 ### 2-1. 왜 Pod 를 직접 만들지 않나
 
 ```bash
+# 📍 k2-cp1
 kubectl run tmp --image=nginx      # 이렇게 만든 Pod 는
 kubectl delete pod tmp             # 지우면 끝이다
 ```
@@ -412,6 +464,7 @@ spec:
 ```
 
 ```bash
+# 📍 k2-cp1
 kubectl exec -it deploy/oracle-client -- sqlplus ...
 ```
 
@@ -429,6 +482,7 @@ kubectl exec -it deploy/oracle-client -- sqlplus ...
 **노드의 로컬 디스크를 쓰므로 파드가 그 노드에 묶인다** — 이 제약을 직접 확인한다.
 
 ```bash
+# 📍 k2-cp1
 kubectl get sc                          # StorageClass 가 있는가
 kubectl get pvc                         # data-oracle-0
 kubectl get pv                          # 자동으로 만들어진 PV
@@ -449,6 +503,7 @@ kubectl get pvc data-oracle-0 -o jsonpath='{.spec.volumeName}'
 ### ⭐ 데이터가 남는지 직접 확인한다
 
 ```bash
+# 📍 k2-cp1
 # 테이블을 만들고 값을 넣은 뒤
 kubectl delete pod oracle-0
 kubectl get pods -w                     # 다시 뜬다
@@ -472,6 +527,7 @@ kubectl get pods -w                     # 다시 뜬다
 ## 4. 설정 주입 — ConfigMap · Secret
 
 ```bash
+# 📍 k2-cp1
 kubectl create secret generic oracle-secret \
   --from-literal=password='<비밀번호>' \
   --from-literal=dsn='oracle-0.oracle:1521/FREEPDB1'
@@ -539,6 +595,7 @@ Stage 3 에서 `rollout restart` 했을 때 파드 IP 가 전부 갈렸다.
 **IP 로 부를 수 없다**는 뜻이다.
 
 ```bash
+# 📍 k2-cp1
 kubectl get pods -o wide
 kubectl delete pod oracle-0
 kubectl get pods -o wide       # 새 IP
@@ -575,6 +632,7 @@ headless       oracle           → 파드 주소 전부
 ```
 
 ```bash
+# 📍 k2-cp1
 kubectl run -it --rm dbg --image=busybox:1.36 --restart=Never -- sh
 # nslookup oracle
 # nslookup oracle-0.oracle
@@ -598,6 +656,7 @@ oracle-0.oracle.default.svc.cluster.local    ← StatefulSet 파드
 ### 6-3. Service 가 보는 것은 파드가 아니라 Endpoints 다
 
 ```bash
+# 📍 k2-cp1
 kubectl get endpoints oracle
 kubectl get endpointslice -l kubernetes.io/service-name=oracle
 ```
@@ -634,6 +693,7 @@ Stage 5 에서 샤드를 둘로 늘릴 때 같은 노드에 하나 더 올릴 �
 ```
 
 ```bash
+# 📍 k2-cp1
 kubectl get pod oracle-0 -o jsonpath='{.status.qosClass}'    # Guaranteed
 ```
 
@@ -676,6 +736,7 @@ spec:
 **정책을 걸기 전후로 다른 파드에서 붙어보는 것**이 실습이다.
 
 ```bash
+# 📍 k2-cp1
 # 정책 전 — 붙는다
 kubectl run -it --rm probe --image=busybox:1.36 --restart=Never -- \
   nc -zv oracle-0.oracle 1521
@@ -695,6 +756,7 @@ kubectl run -it --rm probe --image=busybox:1.36 --restart=Never -- \
 ## 9. 검증과 기록
 
 ```bash
+# 📍 k2-cp1
 kubectl get sts,pvc,svc,netpol
 kubectl get pod oracle-0 -o jsonpath='{.status.qosClass}'
 kubectl get endpoints oracle
@@ -707,7 +769,7 @@ SELECT HERACLES_MATCH(enc_col, :q) FROM docs WHERE ROWNUM = 1;
 ```
 
 ```bash
-# 스냅샷
+# 📍 k8s-2 호스트 — 스냅샷
 for d in k2-cp1 k2-w1 k2-w2; do
   sudo virsh snapshot-create-as $d stage4-done --disk-only --atomic
 done

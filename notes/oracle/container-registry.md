@@ -8,6 +8,7 @@
 계정 문제인지 네트워크 문제인지부터 가른다.
 
 ```bash
+# 📍 어디서든 — 맥·호스트·VM 각각 해본다
 curl -sS -o /dev/null -w "HTTP %{http_code}\n" https://container-registry.oracle.com/v2/
 ```
 
@@ -61,6 +62,7 @@ www-authenticate: Bearer realm="https://container-registry.oracle.com/auth",serv
 ## 2. 로그인 확인 — 맥에서
 
 ```bash
+# 📍 맥 — 계정·라이선스 확인용. 클러스터와 무관하다
 docker login container-registry.oracle.com
 # Username: <Oracle SSO 이메일>
 # Password: <SSO 비밀번호>
@@ -73,6 +75,7 @@ docker login container-registry.oracle.com
 `os/oraclelinux` 는 **라이선스 동의가 필요 없고** 100 MB 대다.
 
 ```bash
+# 📍 맥
 docker pull container-registry.oracle.com/os/oraclelinux:9-slim
 ```
 
@@ -99,6 +102,7 @@ docker pull container-registry.oracle.com/os/oraclelinux:9-slim
 API 로 확인하려면 토큰을 먼저 받는다.
 
 ```bash
+# 📍 맥
 USER='<이메일>'; read -rs PASS
 REPO='database/enterprise'
 
@@ -125,6 +129,7 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
 노드에서 `docker login` 할 필요가 없고, 애초에 이 환경의 VM 에는 docker 가 없다.
 
 ```bash
+# 📍 k2-cp1
 kubectl create secret docker-registry oracle-registry \
   --docker-server=container-registry.oracle.com \
   --docker-username='<이메일>' \
@@ -154,7 +159,7 @@ EE 이미지는 수 GB 다. 파드를 띄우면서 받으면 **`ImagePullBackOff
 이 환경의 VM 에는 `crictl` 이 없고 `ctr` 만 있다.
 
 ```bash
-# VM 안에서
+# 📍 워커 VM 안 (Oracle 이 뜰 노드)
 sudo ctr -n k8s.io images pull \
   --user '<이메일>:<비밀번호>' \
   container-registry.oracle.com/database/enterprise:<태그>
@@ -168,6 +173,7 @@ containerd 는 네임스페이스로 이미지를 나눈다.
 **kubelet 은 `k8s.io` 네임스페이스만 본다.**
 
 ```bash
+# 📍 워커 VM 안
 sudo ctr images pull ...            # ❌ default 네임스페이스 → kubelet 이 못 본다
 sudo ctr -n k8s.io images pull ...  # ✅
 ```
