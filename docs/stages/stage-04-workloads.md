@@ -300,28 +300,37 @@ k2-cp1:  kubectl apply
 #### B. HEracles 를 얹은 커스텀 이미지를 쓸 때
 
 ```
-apps/oracle-heracles/Dockerfile 작성  →  git push
-        └─▶ GitHub Actions 가 빌드한다
-               ├─ container-registry.oracle.com 에서 베이스 pull
-               ├─ HEracles 설치
-               └─ GHCR 에 push
+k8s-2 호스트 (podman)
+   ├─ Oracle 컨테이너 기동
+   ├─ 벤더 install.sh 실행 (podman-docker 가 docker 명령을 제공)
+   ├─ 동작 확인 → 키를 빼내고 컨테이너에서 제거
+   └─ podman commit → GHCR 에 push
 
 k2-cp1:  kubectl apply
               └─▶ 워커의 kubelet ──▶ GHCR
 ```
 
-**빌드도 맥이 아니라 Actions 가 한다.** 맥에서 빌드하면 arm64 로 나와
-`exec format error` 가 나고, 에뮬레이션으로 구우면 EE 이미지는 너무 크다.
+**맥에서 빌드하지 않는다.** 맥은 arm64 이고 Oracle 이미지는 amd64 뿐이라
+`exec format error` 가 나거나 에뮬레이션으로 매우 느려진다.
+k8s-2 호스트가 amd64 네이티브이고 디스크도 3.8 TB 다.
+
+> ⚠️ **이미지만으로는 끝나지 않는다.** HEracles 설치는 파일시스템과
+> **데이터베이스** 양쪽을 건드리는데, DB 쪽 결과는 `oradata`(=PVC)에 들어가
+> **이미지에 담기지 않는다.** 인스턴스마다 Job 으로 한 번씩 실행해야 한다.
+>
+> 절차와 근거: [`notes/oracle/heracles-install.md`](../../notes/oracle/heracles-install.md)
 
 | | A 공식 이미지 | B 커스텀 이미지 |
 |---|---|---|
 | 워커가 받는 곳 | `container-registry.oracle.com` | **GHCR** |
-| 필요한 Secret | Oracle 계정 | **GHCR 토큰** (+ Actions 에 Oracle 계정) |
-| HEracles | initContainer·기동 스크립트로 설치 | **이미지에 포함** |
-| 기동 속도 | 느림 (매번 설치) | 빠름 |
+| 필요한 Secret | Oracle 계정 | **GHCR 토큰** |
+| `.so` · `extproc.ora` | 기동할 때마다 설치 | **이미지에 포함** |
+| DB 쪽 설치 | 매번 | **Job 으로 1회** (PVC 에 남는다) |
+| 키 | 인스턴스마다 생성 → **샤딩 불가** | **Secret 으로 공유** |
+| 기동 속도 | 느림 | 빠름 |
 
 **B 를 권한다.** [Stage 5](stage-05-db-scaling.md) 에서 인스턴스를 여러 개 띄울 때
-기동 시간이 곧 실험 시간이 되기 때문이다.
+기동 시간이 곧 실험 시간이 되고, **키를 공유하지 않으면 샤딩 자체가 불가능**하다.
 
 ### 1-1. 이미지 이름의 구조
 

@@ -6,6 +6,7 @@ Oracle 관련 참고 자료.
 | 문서 | 내용 |
 |---|---|
 | [`container-registry.md`](container-registry.md) | 이미지 받기 — 라이선스 동의, `imagePullSecret`, 미리 받아두기 |
+| [`heracles-install.md`](heracles-install.md) | **HEracles 설치** — 스크립트 분해, podman 경로, k8s 로 옮기기 |
 
 ## 왜 Oracle 인가
 

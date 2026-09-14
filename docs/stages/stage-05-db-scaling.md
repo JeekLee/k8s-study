@@ -406,6 +406,7 @@ Stage 10  HA 완성 후 재측정 → 개선 폭 확인
 | HEracles 배포 방식 | 커스텀 이미지에 포함 vs initContainer 설치 |
 | 데이터셋 | 행 수·암호문 크기. **풀스캔 시간이 측정 가능한 범위**여야 한다 |
 | 노드 자원 | 워커 12 vCPU / 96 GiB / 데이터 디스크 500 GB — [Stage 4 §0](stage-04-workloads.md) 에서 확장 |
+| **HEracles 키** | ⭐ **전 인스턴스가 같은 키를 써야 한다.** 샤드마다 키가 다르면 데이터를 나눠 담을 수 없다 → [`notes/oracle/heracles-install.md`](../../notes/oracle/heracles-install.md) |
 | 부하 생성기 이미지 | `apps/loadgen` 으로 추가 예정 |
 
 ## 자주 막히는 곳
@@ -415,6 +416,7 @@ Stage 10  HA 완성 후 재측정 → 개선 폭 확인
 | DOP 를 올려도 안 빨라짐 | `v$pq_sesstat` — 힌트가 무시됐거나 `limits.cpu` 스로틀링 |
 | 샤드를 늘려도 안 빨라짐 | `iostat` — 같은 디스크를 공유하고 있다 |
 | 복제본에 부하가 몰림 | Service 의 랜덤 분배. 연결 수를 직접 세어볼 것 |
+| 샤드에서 검색 결과가 빔 | **키가 다르다.** 암호화한 키와 검색하는 키가 같은지 |
 | PVC 가 `Pending` | local-path 는 노드에 묶인다. `podAntiAffinity` 와 충돌하지 않는지 |
 | DB 파드가 축출됨 | QoS 가 `Guaranteed` 인가 |
 

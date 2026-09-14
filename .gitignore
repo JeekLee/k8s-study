@@ -31,3 +31,8 @@ wg*.conf
 
 # ─── 실제 호스트 정보 (공개 저장소이므로 로컬 전용) ───
 docs/hosts.local.md
+
+# HEracles 키 — 절대 커밋하지 않는다
+heracles-keys/
+*.key
+secret.key
