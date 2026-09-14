@@ -86,6 +86,36 @@ docker pull container-registry.oracle.com/os/oraclelinux:9-slim
 
 수 GB 짜리 EE 이미지로 시험하면 **실패를 확인하는 데만 몇 분**이 걸린다.
 
+### ⭐ 여기서 받은 이미지는 클러스터가 쓰지 않는다
+
+**맥에서 하는 pull 은 확인일 뿐이다.** 받은 이미지는 지워도 된다.
+
+```bash
+# 📍 맥 — 확인이 끝나면
+docker rmi container-registry.oracle.com/os/oraclelinux:9-slim
+```
+
+클러스터는 **워커의 kubelet 이 직접** 받아온다. 맥을 거치지 않는다.
+→ [Stage 4 §1-0](../../docs/stages/stage-04-workloads.md)
+
+### 받지 않고 확인하는 방법
+
+수 GB 를 내려받지 않고도 인증과 라이선스를 확인할 수 있다.
+
+```bash
+# 📍 맥 — 메타데이터만 읽는다. 레이어는 안 받는다
+docker manifest inspect container-registry.oracle.com/database/enterprise:<태그> > /dev/null \
+  && echo "✅ 받을 수 있다"
+```
+
+| 결과 | 뜻 |
+|---|---|
+| `✅` | 계정·라이선스·태그 전부 정상 |
+| `unauthorized` | 로그인 안 됐거나 **라이선스 미동의** |
+| `manifest unknown` | 태그가 틀렸다 |
+
+**EE 이미지로 시험해도 몇 초면 끝난다.** 실제 pull 은 클러스터가 할 일이다.
+
 ---
 
 ## 3. 이미지와 태그 고르기

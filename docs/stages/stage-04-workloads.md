@@ -270,6 +270,59 @@ kubectl describe node k2-w1 | grep -A6 Capacity      # hugepages-2Mi 가 0 이 �
 
 ## 1. 이미지 — 어디서 오는가
 
+### 1-0. ⭐ 이미지가 어떤 경로로 오는가
+
+**맥에서 받은 이미지는 클러스터가 쓰지 않는다. 버린다.**
+
+```
+┌ 확인 — 한 번만, 버리는 작업 ────────────────────────────┐
+│                                                        │
+│  맥  ──docker login──▶  container-registry.oracle.com   │
+│      ◀── "이 계정으로 받을 수 있다"                       │
+│                                                        │
+│  목적: 라이선스 동의가 됐는지 미리 아는 것.                 │
+│  받은 이미지는 지워도 된다. 안 받고 확인하는 방법도 있다.     │
+└────────────────────────────────────────────────────────┘
+```
+
+그리고 **실제 경로는 둘 중 하나**인데, 어느 쪽에도 맥이 나오지 않는다.
+
+#### A. Oracle 공식 이미지를 그대로 쓸 때
+
+```
+k2-cp1:  kubectl create secret ...      ← 맥에서 확인한 그 계정 정보
+k2-cp1:  kubectl apply
+              └─▶ 워커의 kubelet ──▶ container-registry.oracle.com
+```
+
+맥이 한 일은 **계정이 유효하다는 것을 알려준 것뿐**이다.
+
+#### B. HEracles 를 얹은 커스텀 이미지를 쓸 때
+
+```
+apps/oracle-heracles/Dockerfile 작성  →  git push
+        └─▶ GitHub Actions 가 빌드한다
+               ├─ container-registry.oracle.com 에서 베이스 pull
+               ├─ HEracles 설치
+               └─ GHCR 에 push
+
+k2-cp1:  kubectl apply
+              └─▶ 워커의 kubelet ──▶ GHCR
+```
+
+**빌드도 맥이 아니라 Actions 가 한다.** 맥에서 빌드하면 arm64 로 나와
+`exec format error` 가 나고, 에뮬레이션으로 구우면 EE 이미지는 너무 크다.
+
+| | A 공식 이미지 | B 커스텀 이미지 |
+|---|---|---|
+| 워커가 받는 곳 | `container-registry.oracle.com` | **GHCR** |
+| 필요한 Secret | Oracle 계정 | **GHCR 토큰** (+ Actions 에 Oracle 계정) |
+| HEracles | initContainer·기동 스크립트로 설치 | **이미지에 포함** |
+| 기동 속도 | 느림 (매번 설치) | 빠름 |
+
+**B 를 권한다.** [Stage 5](stage-05-db-scaling.md) 에서 인스턴스를 여러 개 띄울 때
+기동 시간이 곧 실험 시간이 되기 때문이다.
+
 ### 1-1. 이미지 이름의 구조
 
 ```
@@ -294,8 +347,7 @@ ghcr.io/jeeklee/k8s-study-oracle-heracles:0.1.0
 | **커스텀 이미지에 포함** | **재현 가능**, 기동이 빠름, 버전이 태그에 박힌다 | 이미지를 직접 관리 |
 | initContainer · 기동 스크립트 | 공식 이미지를 그대로 | **기동할 때마다 설치**, 느림, 네트워크 의존 |
 
-**커스텀 이미지 쪽을 권한다.** [Stage 5](stage-05-db-scaling.md) 에서 인스턴스를 여러 개 띄울 때
-기동 시간이 그대로 실험 시간이 되기 때문이다.
+위 §1-0 의 **B 경로**에 해당한다.
 
 ```dockerfile
 # apps/oracle-heracles/Dockerfile — 형태 예시
