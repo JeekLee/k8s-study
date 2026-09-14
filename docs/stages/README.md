@@ -8,9 +8,9 @@
 | 1 | [가상화 기반](stage-01-virtualization.md) | ✅ 완료 |
 | 2 | [첫 클러스터](stage-02-first-cluster.md) | ✅ 완료 |
 | 3 | [다중 노드](stage-03-multi-node.md) | ✅ 완료 |
-| 4 | [워크로드와 서비스](stage-04-workloads.md) | 📖 절차 작성 완료 |
-| 5 | [데이터 계층](stage-05-data-layer.md) | 📝 계획 수준 |
-| 6 | [DB 확장과 로드밸런싱](stage-06-db-scaling.md) | 📝 계획 수준 |
+| 4 | [데이터 계층 워크로드](stage-04-workloads.md) | 📖 절차 작성 완료 |
+| 5 | [DB 확장과 로드밸런싱](stage-05-db-scaling.md) | 📝 계획 수준 |
+| 6 | [스테이트리스 앱과 외부 노출](stage-06-stateless-apps.md) | 📝 계획 수준 |
 | 6 | [이벤트 기반 MSA](stage-07-event-driven.md) | 📝 계획 수준 |
 | 7 | [스케줄링과 운영](stage-08-scheduling-ops.md) | 📝 계획 수준 |
 | 8 | [크로스 호스트 라우팅](stage-09-cross-host.md) | 📝 계획 수준 |
@@ -23,7 +23,8 @@
 | Stage | 성격 |
 |---|---|
 | 0~3, 9~10 | **인프라** — 클러스터를 만든다 |
-| **4~8** | **애플리케이션** — 클러스터를 쓴다 |
+| **4~5** | **데이터 계층** — Oracle·HEracles, 확장과 LB |
+| **6~8** | **애플리케이션** — 앱·이벤트·운영 |
 | 11~12 | **시험** — 속도와 범위 |
 
 앱 단계(4~8)를 크로스 호스트(9)보다 먼저 두는 이유는,

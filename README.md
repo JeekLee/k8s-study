@@ -10,9 +10,9 @@ CKA 대비용 kubeadm 클러스터를 직접 설계·구축하며 학습하는 �
 | 1 | [가상화 기반](docs/stages/stage-01-virtualization.md) — libvirt, VM 3대, 스냅샷 | ✅ 완료 |
 | 2 | [첫 클러스터](docs/stages/stage-02-first-cluster.md) — 단일 노드 + HAProxy | ✅ 완료 |
 | 3 | [다중 노드](docs/stages/stage-03-multi-node.md) — 호스트 내부 | ✅ 완료 |
-| 4 | [워크로드와 서비스](docs/stages/stage-04-workloads.md) — 이미지·Deployment·Service·Ingress | ⬜ |
-| 5 | [데이터 계층](docs/stages/stage-05-data-layer.md) — StatefulSet·PVC·NetworkPolicy | ⬜ |
-| 6 | [DB 확장과 로드밸런싱](docs/stages/stage-06-db-scaling.md) — Oracle·HEracles·샤딩·LB | ⬜ |
+| 4 | [데이터 계층 워크로드](docs/stages/stage-04-workloads.md) — 이미지·StatefulSet·PVC·Service | ⬜ |
+| 5 | [DB 확장과 로드밸런싱](docs/stages/stage-05-db-scaling.md) — PQ·샤딩·복제·LB | ⬜ |
+| 6 | [스테이트리스 앱과 외부 노출](docs/stages/stage-06-stateless-apps.md) — Deployment·롤링·Ingress | ⬜ |
 | 7 | [이벤트 기반 MSA](docs/stages/stage-07-event-driven.md) — Kafka·saga·보상 | ⬜ |
 | 8 | [스케줄링과 운영](docs/stages/stage-08-scheduling-ops.md) — HPA·PDB·priority | ⬜ |
 | 9 | [크로스 호스트 라우팅](docs/stages/stage-09-cross-host.md) — WireGuard | ⬜ |

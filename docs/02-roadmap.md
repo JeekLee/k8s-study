@@ -56,9 +56,9 @@ graph TB
 | [1](stages/stage-01-virtualization.md) | 가상화 기반 (libvirt, 스냅샷) | 반나절 | ✅ 완료 |
 | [2](stages/stage-02-first-cluster.md) | 첫 클러스터 (단일 노드) + HAProxy | 하루 | ✅ 완료 |
 | [3](stages/stage-03-multi-node.md) | 다중 노드 (호스트 내부) | 하루 | ✅ 완료 |
-| [4](stages/stage-04-workloads.md) | 워크로드와 서비스 | 1–2일 | ← **다음** |
-| [5](stages/stage-05-data-layer.md) | 데이터 계층 (StatefulSet·PVC·Oracle) | 2–3일 | |
-| [6](stages/stage-06-db-scaling.md) | DB 확장과 로드밸런싱 (Oracle·HEracles) | 3–5일 | |
+| [4](stages/stage-04-workloads.md) | 데이터 계층 워크로드 (Oracle·HEracles) | 2–3일 | ← **다음** |
+| [5](stages/stage-05-db-scaling.md) | DB 확장과 로드밸런싱 (PQ·샤딩·LB) | 3–5일 | |
+| [6](stages/stage-06-stateless-apps.md) | 스테이트리스 앱과 외부 노출 | 1–2일 | |
 | [7](stages/stage-07-event-driven.md) | 이벤트 기반 MSA (Kafka·saga) | 3–5일 | |
 | [8](stages/stage-08-scheduling-ops.md) | 스케줄링과 운영 (HPA·PDB) | 2–3일 | |
 | [9](stages/stage-09-cross-host.md) | 크로스 호스트 라우팅 (WireGuard) | 하루 | |
@@ -70,7 +70,8 @@ graph TB
 
 ```
 0 ─ 1 ─ 2 ─ 3                  인프라 — 클러스터를 만든다
-            └─ 4 ─ 5 ─ 6 ─ 7 ─ 8   애플리케이션 — 클러스터를 쓴다
+            └─ 4 ─ 5              데이터 계층 — Oracle·HEracles, 확장과 LB
+                  └─ 6 ─ 7 ─ 8    애플리케이션 — 앱·이벤트·운영
                               └─ 9 ─ 10   인프라 — 두 호스트로 확장
                                       └─ 11 ─ 12   시험
 ```

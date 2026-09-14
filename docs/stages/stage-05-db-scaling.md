@@ -1,11 +1,11 @@
-# Stage 6 — DB 수평 확장과 로드밸런싱
+# Stage 5 — DB 수평 확장과 로드밸런싱
 
 | | |
 |---|---|
 | 예상 소요 | 3~5일 |
-| 선행 | [Stage 5](stage-05-data-layer.md) |
+| 선행 | [Stage 4](stage-04-workloads.md) |
 | 대상 | Oracle EE + HEracles (FHE 검색 확장) |
-| 기록할 곳 | `labs/stage-06-db-scaling.md` |
+| 기록할 곳 | `labs/stage-05-db-scaling.md` |
 
 > 📝 계획 수준. 진입할 때 실행 절차로 확장한다.
 > Oracle 버전·HEracles 설치 방식은 실제 환경을 확인한 뒤 확정한다.
@@ -355,7 +355,7 @@ iostat -x 2 /dev/sda
 **여기서 I/O 벽을 만나는 것이 정상이고, 그것이 Stage 9 의 이유가 된다.**
 
 ```
-Stage 6   한 호스트에서 측정 → I/O 벽
+Stage 5   한 호스트에서 측정 → I/O 벽
              ↓
 Stage 9   크로스 호스트 — 두 호스트에 디스크가 분리된다
              ↓
@@ -403,4 +403,4 @@ Stage 10  HA 완성 후 재측정 → 개선 폭 확인
 
 ---
 
-다음: [Stage 7 — 이벤트 기반 MSA](stage-07-event-driven.md)
+다음: [Stage 6 — 스테이트리스 앱과 외부 노출](stage-06-stateless-apps.md)

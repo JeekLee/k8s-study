@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | 예상 소요 | 3~5일 |
-| 선행 | [Stage 6](stage-06-db-scaling.md) |
+| 선행 | [Stage 6](stage-06-stateless-apps.md) |
 | 앱 | Kafka + `order`·`payment`·`inventory`·`notification`·`web` |
 | 기록할 곳 | `labs/stage-07-event-driven.md` |
 

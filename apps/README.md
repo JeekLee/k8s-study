@@ -47,11 +47,11 @@ sequenceDiagram
 
 | BC | 스택 | 저장소 | 역할 | 배포 |
 |---|---|---|---|---|
-| [**inventory**](inventory/) | FastAPI | 메모리 → MySQL | 재고 예약·복원 | Stage 4 |
-| [**order**](order/) | Spring Boot | H2 → MySQL | 주문 상태 관리 | Stage 5 |
+| [**inventory**](inventory/) | FastAPI | 메모리 → DB | 재고 예약·복원 | Stage 6 |
+| [**order**](order/) | Spring Boot | H2 → DB | 주문 상태 관리 | Stage 7 |
 | [**payment**](payment/) | Spring Boot 4 | H2 → MySQL | 결제 승인·취소, **멱등성** | Stage 7 |
 | [**notification**](notification/) | FastAPI | — | 이벤트 구독, 알림 로그 | Stage 7 |
-| [**web**](web/) | Next 16 | — | 주문 UI | Stage 7 |
+| [**web**](web/) | Next 16 | — | 주문 UI | Stage 6~7 |
 
 **코드는 전부 미리 만들어 뒀다.** 앱 작성이 목적이 아니므로
 단계마다 코드를 새로 쓰느라 흐름이 끊기지 않게 했다.
@@ -67,7 +67,8 @@ sequenceDiagram
 | `DATABASE_URL` | 메모리 dict (FastAPI) | MySQL |
 | `KAFKA_BOOTSTRAP` | 로그만 남김 | 실제 발행·구독 |
 
-Stage 4 는 아무것도 주지 않고 띄우고, Stage 5 에서 DB 를, Stage 7 에서 Kafka 를 붙인다.
+Stage 6 은 아무것도 주지 않고 띄우고, 같은 단계에서 `DATABASE_URL` 만 넣어
+Stage 4 에 올린 DB 에 붙인다. Stage 7 에서 Kafka 를 붙인다.
 **이미지를 다시 빌드하지 않는다** — 12-factor 의 설정 분리를 그대로 따른 것이고,
 "설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
 

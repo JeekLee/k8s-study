@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | 스택 | FastAPI · Python 3.13 |
-| 저장소 | Stage 4: 메모리 / Stage 5: MySQL |
+| 저장소 | 메모리 → DB (`DATABASE_URL` 로 전환) |
 | 포트 | 8000 |
 | 이미지 | `ghcr.io/jeeklee/k8s-study-inventory` |
 
@@ -24,7 +24,7 @@
 |---|---|---|
 | `APP_VERSION` | `dev` | 응답에 표시 — 롤링 업데이트 확인용 |
 | `GREETING` | 기본 문구 | ConfigMap 주입 확인용 |
-| `DATABASE_URL` | **메모리** (Stage 4) | **MySQL** (Stage 5~) |
+| `DATABASE_URL` | **메모리** | **DB** — Stage 6 에서 전환 |
 
 `DATABASE_URL` 예시:
 
@@ -33,7 +33,7 @@ mysql+pymysql://inventory:<비밀번호>@mysql:3306/inventory
 ```
 
 **이미지는 그대로 두고 환경변수만 바꿔 저장소를 전환한다.**
-Stage 5 에서 "설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
+Stage 6 에서 "설정만 바꿔 배포한다"가 무슨 뜻인지 직접 확인하게 된다.
 
 ## 로컬 실행
 

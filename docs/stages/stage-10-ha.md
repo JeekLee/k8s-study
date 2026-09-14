@@ -92,11 +92,11 @@ sudo kubeadm join <endpoint>:6443 --token ... \
 진짜 HA는 장애 도메인이 3개여야 한다.
 **이 한계를 직접 겪는 것이 쿼럼을 이해하는 가장 좋은 방법이다.**
 
-## 마지막에 — Stage 6 을 다시 측정한다
+## 마지막에 — Stage 5 를 다시 측정한다
 
-**6노드가 완성된 지금이 [Stage 6](stage-06-db-scaling.md) 의 한계를 풀 수 있는 시점이다.**
+**6노드가 완성된 지금이 [Stage 5](stage-05-db-scaling.md) 의 한계를 풀 수 있는 시점이다.**
 
-Stage 6 에서는 샤드·복제본이 전부 k8s-2 한 대에 있어
+Stage 5 에서는 샤드·복제본이 전부 k8s-2 한 대에 있어
 **같은 디스크(`/dev/sda`)를 공유**했다. FHE 암호문이 커서 풀스캔이 I/O 를 때리면
 코어를 늘려도 확장이 멈춘다 — 거기서 곡선이 꺾였을 것이다.
 
@@ -119,7 +119,7 @@ topologySpreadConstraints:
 > 노드에 호스트를 나타내는 라벨이 없으면 먼저 붙인다.
 > `kubectl label node k1-w1 topology.kubernetes.io/zone=k8s-1`
 
-**같은 부하로 다시 재고 Stage 6 의 곡선과 겹쳐 본다.**
+**같은 부하로 다시 재고 Stage 5 의 곡선과 겹쳐 본다.**
 
 | 확인 | 기대 |
 |---|---|
