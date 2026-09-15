@@ -279,6 +279,75 @@ FHE       WHERE HERACLES_MATCH(...)=1 AND grp=7
           → FHE 전부 실행  +  grp 인덱스 조회  →  교집합          ❌ 좁히기 불가
 ```
 
+
+### ⚠️ 쿼리를 고쳐서 순서를 바꿀 수는 없다
+
+"평문 조건을 먼저 적용하게 힌트를 주면 되지 않나" 는 **원리적으로 불가능하다.**
+
+`HERACLES_MATCH` 의 **함수형 구현이 항상 오류를 던지기 때문**이다.
+
+```sql
+-- install.sql
+-- Functional implementation: called without a domain index there is no way to
+-- evaluate FHE on plaintext, so raise.
+CREATE OR REPLACE FUNCTION heracles_match_fn(p_col VARCHAR2, p_query VARCHAR2)
+  RETURN NUMBER IS
+BEGIN
+    raise_application_error(-20823,
+      'HERACLES_MATCH requires a domain index (heracles_indextype) to be usable');
+END;
+```
+
+**도메인 인덱스로만 평가된다.** 행 단위 평가가 아예 없다.
+
+| 시도 | 결과 |
+|---|---|
+| `WHERE grp=7 AND HERACLES_MATCH(...)` 순서 바꾸기 | SQL 에서 순서는 무의미. 옵티마이저가 정한다 |
+| `/*+ NO_INDEX(bench bench_phone_ex) */` | **ORA-20823 오류** |
+| 서브쿼리로 먼저 좁히고 밖에서 FHE | 여전히 도메인 인덱스 경로. 비용 동일 |
+| 인라인 뷰 + `NO_MERGE` 로 실체화 | 위와 같다 |
+
+#### 벤더가 이 상황을 방어해뒀다
+
+`install.sql` PART C 의 주석이 설계 의도를 그대로 말한다.
+
+```
+-- Why this exists: heracles_match_fn (the functional implementation) always raises
+-- ORA-20823, so a plan that does NOT walk the domain index does not merely run
+-- slowly -- it fails.  Giving the CBO a cost and a selectivity for HERACLES_MATCH
+-- is what keeps the domain-index path chosen once the predicate is ANDed with
+-- other predicates or pulled into a join.
+```
+
+평문 조건과 AND 되거나 조인에 끌려 들어갔을 때 옵티마이저가 다른 계획을 고르면
+**느려지는 게 아니라 실패**하므로, 통계 타입(`ODCIStats`)을 등록해
+**도메인 인덱스가 항상 선택되도록 비용을 조작**해둔 것이다.
+
+> 그 비용값은 실측이 아니라 `heracles_stats_cfg` 테이블의 placeholder 다.
+> ```
+> -- Placeholder numbers: ... Retune from measurements before treating these as real.
+> ```
+> 조정할 수 있지만 **더 싸게 만드는 방향으로만** 의미가 있다.
+> 비싸게 만들면 다른 계획을 골라 오류가 난다.
+
+#### 왜 원리적으로 안 되는가
+
+```
+grp=7 로 1,000건을 먼저 추렸다고 하자
+  → 각 행의 phone 은 AES 암호문
+  → 비교하려면 복호화해야 한다          ← 목적 위배
+  → 아니면 FHE 인덱스를 거쳐야 한다      ← 그건 전체 인덱스 조회
+```
+
+**FHE 검색은 "인덱스 전체" 를 단위로만 성립한다.** 부분 집합에 대해 실행할 수 있는 형태가 아니다.
+
+```
+쿼리 레벨    ❌  힌트·순서·서브쿼리 전부 불가
+스키마 레벨  ✅  평문 컬럼으로 샤딩 → 조회할 인덱스 자체를 줄인다
+```
+
+**"어떤 인덱스를 볼지" 는 정할 수 있고, "인덱스 안에서 어디를 볼지" 는 불가능하다.**
+
 ### ⭐ 우회로 — 샤딩 키를 평문 필터 컬럼으로
 
 **인덱스 하나 안에서는 못 좁히지만, 인덱스를 나눠두면 된다.**
