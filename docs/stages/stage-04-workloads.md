@@ -47,7 +47,7 @@ graph TB
 
 ## 완료 기준
 
-- [ ] 워커가 **12 vCPU / 96 GiB** 로 늘어났고 kubelet 이 그 값을 보고한다
+- [ ] **워커 2대가** 12 vCPU / 96 GiB 로 늘어났고 kubelet 이 그 값을 보고한다 (cp1 은 그대로)
 - [ ] 워커에 **데이터 디스크 500 GB** 가 `/data` 로 붙었다
 - [ ] **containerd 가 `/data/containerd`** 를 쓴다 (루트 디스크가 안 찬다)
 - [ ] 내가 만든 이미지를 클러스터가 **GHCR 에서 받아온다**
@@ -134,11 +134,34 @@ k2-cp1 에서  kubectl apply
 
 | VM | vCPU | 메모리 | 루트 | **데이터 디스크** |
 |---|---|---|---|---|
-| `k2-cp1` | **4** | **8 GiB** | 38 GB | — |
-| `k2-w1` | **12** | **96 GiB** | 38 GB | **500 GB** |
-| `k2-w2` | **12** | **96 GiB** | 38 GB | **500 GB** |
-| 합계 | **28** | **200 GiB** | | 1 TB |
-| 호스트 잔여 | 4 | 51 GiB | | 2.8 TB |
+| `k2-cp1` | 2 (그대로) | 4 GiB (그대로) | 38 GB | — |
+| `k2-w1` | 4 → **12** | 8 → **96 GiB** | 38 GB | **500 GB** |
+| `k2-w2` | 4 → **12** | 8 → **96 GiB** | 38 GB | **500 GB** |
+| 합계 | **26** | **196 GiB** | | 1 TB |
+| 호스트 잔여 | 6 | 55 GiB | | 2.8 TB |
+
+### ⭐ `k2-cp1` 은 건드리지 않는다
+
+측정해보면 여유가 있다.
+
+```bash
+# 📍 k2-cp1 에서 — 2 vCPU / 4 GiB 인 상태
+free -m        # 3914 총, 1590 사용 → available 2324 MB
+uptime         # load average 0.03  ← 거의 놀고 있다
+ps -eo rss,comm --sort=-rss | head -3
+#   502588 kube-apiserver    ← 가장 큰 것이 500 MB
+```
+
+**그리고 내리면 클러스터가 멈춘다.**
+
+| 어디를 내리나 | 영향 |
+|---|---|
+| 워커 | drain 하면 파드가 다른 워커로 간다. **API 는 살아 있다** |
+| **`k2-cp1`** | **API 서버가 사라진다.** `kubectl` 이 안 되고 HAProxy 헬스체크도 실패한다 |
+
+control plane 이 1대뿐이라 대안이 없다. **이득 없이 위험만 있다.**
+부족해지면 그때 올린다 — 같은 명령이고 5분이다.
+[Stage 10](stage-10-ha.md) 에서 control plane 을 3대로 만들 때 다시 본다.
 
 **왜 워커당 12 vCPU 인가** — [Stage 5](stage-05-db-scaling.md) 에서
 Parallel Query 의 DOP 를 `1 → 2 → 4 → 8 → 12` 로 올리며 곡선을 그린다.
@@ -161,7 +184,7 @@ Parallel Query 의 DOP 를 `1 → 2 → 4 → 8 → 12` 로 올리며 곡선을 
 
 ```bash
 # 📍 k8s-2 호스트
-D=k2-w1                       # k2-w2, k2-cp1 도 같은 방식
+D=k2-w1                       # k2-w2 도 같은 방식. cp1 은 하지 않는다
 
 sudo virsh shutdown $D
 until [ "$(sudo virsh domstate $D)" = "shut off" ]; do sleep 2; done
@@ -176,15 +199,16 @@ sudo virsh start $D
 
 | VM | `setmaxmem` / `setmem` | `setvcpus` |
 |---|---|---|
-| `k2-cp1` | `8192M` | `4` |
 | `k2-w1` | `98304M` | `12` |
 | `k2-w2` | `98304M` | `12` |
+
+**`k2-cp1` 은 대상이 아니다.** 여유가 있고, 내리면 클러스터 API 가 멈춘다 — §0-2 참고.
 
 > ⚠️ **`--maximum` 을 먼저 올려야 한다.** 현재값은 최대값을 넘을 수 없다.
 > 순서를 바꾸면 `requested vcpus is greater than max allowable` 이 난다.
 
-> ⚠️ **한 대씩 한다.** 세 대를 동시에 내리면 클러스터가 통째로 멈춘다.
-> 워커 하나를 내릴 때는 먼저 비워두는 것이 정석이다 — Stage 3 에서 한 그대로다.
+> ⚠️ **한 대씩 한다.** 워커 둘을 동시에 내리면 파드가 갈 곳이 없다.
+> 내리기 전에 비워두는 것이 정석이다 — Stage 3 에서 한 그대로다.
 > ```bash
 > kubectl drain k2-w1 --ignore-daemonsets --delete-emptydir-data
 > # ... 재부팅 ...
@@ -286,7 +310,7 @@ sudo mkdir -p /data/local-path
 
 ```bash
 # 📍 k8s-2 호스트
-for d in k2-cp1 k2-w1 k2-w2; do
+for d in k2-w1 k2-w2 k2-cp1; do
   cpu=$(sudo virsh dominfo $d | awk '/CPU\(s\)/{print $2}')
   mem=$(sudo virsh dominfo $d | awk '/Max memory/{print $3}')
   echo "$d  vCPU=$cpu  MEM=$((mem / 1024))MiB"
