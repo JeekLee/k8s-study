@@ -66,17 +66,28 @@ graph TB
 SELECT id FROM docs WHERE HERACLES_MATCH(enc_col, :q) = 1;
 ```
 
-`HERACLES_MATCH` 는 **행마다 독립적으로** FHE 비교를 수행하고 **매칭된 row ID 만** 돌려준다.
-정렬·조인·집계는 평문 SQL 이 맡는다.
+`HERACLES_MATCH` 는 **ODCI 도메인 인덱스 연산자**다. Oracle Text 의 `CONTAINS()` 와
+같은 구조로, HEracles 가 자체 FHE 인덱스를 관리하고 검색은 쿼리당 한 번 일어난다.
 
-이 모양이 확장 실험에 이상적이다.
+```
+| Id  | Operation                    | Name           |
+|   1 |  TABLE ACCESS BY INDEX ROWID | BENCH          |
+|   2 |   DOMAIN INDEX               | BENCH_PHONE_EX |   ← 풀스캔이 아니다
+```
 
-| 특성 | 의미 |
+> ⭐ **이 단계의 설계는 실측으로 검증했다.**
+> → [`notes/oracle/heracles-scaling.md`](../../notes/oracle/heracles-scaling.md)
+
+실측에서 나온 세 가지가 설계를 결정한다.
+
+| 사실 | 의미 |
 |---|---|
-| 행 단위 독립 연산 | **완전 병렬화 가능** (embarrassingly parallel) |
-| 결과가 row ID 목록 | 샤드 간 **병합이 합집합**이면 끝 |
-| 집계를 DB 에 위임 | 샤드 간 조인 비용이 생기지 않는다 |
-| 읽기 전용 | **복제본에서 그대로 돌아간다** |
+| **검색 비용 ∝ 인덱스 크기** (선형) | 샤드당 인덱스가 1/K → **지연 1/K** |
+| **단일 검색 = 단일 스레드 1코어** | 코어를 더 줘도 한 쿼리는 안 빨라진다 |
+| 동시 세션은 8개까지 92% 확장 | **처리량은 샤딩 없이도 는다** |
+| 인덱스 크기 ∝ **고유값 수** (행 수 아님) | 카디널리티가 낮으면 애초에 문제가 안 된다 |
+
+**측정된 개선폭: 1M 행 단일 인덱스 126 ms → 4샤드 29.5 ms (4.27배).**
 
 ## ⭐ 개선 축이 둘이다
 
@@ -157,49 +168,37 @@ kubectl scale deployment loadgen --replicas=20     # 동시 20
 
 ---
 
-## 2. ① 스케일업 — Parallel Query
+## 2. ⚠️ Parallel Query 는 이 워크로드와 무관하다
 
-**샤딩보다 먼저 한다.** 한 인스턴스에서 워커의 12코어를 다 쓸 수 있는데
-복잡도를 떠안으면 손해이기 때문이다.
+**처음에는 DOP 를 올리며 곡선을 그리려 했다. 그 설계는 틀렸다.**
 
-```sql
--- 직렬 baseline
-SELECT id FROM docs WHERE HERACLES_MATCH(enc_col, :q) = 1;
+`HERACLES_MATCH` 가 도메인 인덱스라 **FHE 작업이 테이블 스캔에 없다.**
+`/*+ PARALLEL(t,12) */` 를 줘봐야 병렬화할 스캔 자체가 없다.
 
--- DOP 를 올려가며
-SELECT /*+ PARALLEL(docs, 4) */ id FROM docs WHERE HERACLES_MATCH(enc_col, :q) = 1;
+실측으로 확인한 것:
+
+```
+검색 중 extproc 프로세스
+  %CPU=99.6  threads=1        ← 32코어 중 1개, 스레드 1개
 ```
 
-```sql
--- 실제로 병렬이 걸렸는지 확인 — 힌트를 줘도 무시될 수 있다
-SELECT * FROM v$pq_sesstat WHERE statistic = 'Queries Parallelized';
-SELECT degree FROM v$px_session WHERE sid = SYS_CONTEXT('USERENV','SID');
-```
+`libheracles.so` 에 OpenMP 런타임이 없다 (`GOMP_*`, `omp_*` 심볼 0건).
 
-**DOP 1 → 2 → 4 → 8 → 12 로 올리며 지연을 기록한다.**
-워커가 12 vCPU 이므로 12가 상한이다. 그 이상을 보려면 VM 을 더 키워야 한다.
+> **그래도 `limits.cpu` 는 중요하다.** 단일 검색은 1코어지만
+> **동시 세션마다 `extproc` 이 따로 뜬다.** `limits.cpu: 4` 면 동시 4세션까지다.
+> 처리량 상한이 `limits.cpu` 로 정해진다.
 
-파티셔닝을 더하면 파티션별 병렬 스캔이 된다.
+### 대신 무엇을 재는가 — 카디널리티
 
-```sql
-ALTER TABLE docs PARALLEL 12;
--- 해시 파티셔닝 후 partition-wise 병렬
-```
+**인덱스 크기는 행 수가 아니라 고유값 수를 따른다.**
 
-### ⚠️ `limits.cpu` 가 PQ 를 막는다
+| 100만 행, 고유값 | 인덱스 | exact 검색 |
+|---|---|---|
+| 10,000 | 41 MB | 9.6 ms |
+| 1,000,000 | 459 MB | 109.7 ms |
 
-컨테이너에 `limits.cpu: 4` 를 걸면 **DOP 를 12로 줘도 4코어 분량만 돈다.**
-cgroup 이 스로틀링하기 때문이다.
-
-```bash
-kubectl get pod <oracle> -o jsonpath='{.spec.containers[0].resources}'
-cat /sys/fs/cgroup/.../cpu.stat        # nr_throttled 가 올라간다
-```
-
-**DOP 와 `limits.cpu` 를 함께 올려가며 재는 것**이 이 절의 핵심이다.
-→ [`notes/kubernetes/resources.md`](../../notes/kubernetes/resources.md)
-
----
+**같은 행 수인데 11배 차이다.** 실제 데이터의 카디널리티를 먼저 확인할 것.
+낮으면 샤딩이 필요 없을 수도 있다.
 
 ## 3. ② 스케일아웃 — 샤딩
 
@@ -254,15 +253,24 @@ affinity:
 | 6 | 3개 | 4 | 24 GiB | SGA 가 작아진다 |
 | 8 | 4개 | 3 | 16 GiB | **SGA 가 너무 작아 비교가 무의미해질 수 있다** |
 
-> ⭐ **여기에 이 실험의 함정이 있다.** 샤드를 늘리면 데이터는 1/N 로 줄지만
-> **인스턴스당 자원도 1/N 로 준다.** 총 자원이 고정된 상태에서 나누는 것이므로,
-> 순수한 "확장 효과"가 아니라 **분할 효과**를 보는 것이다.
+> ⭐ **샤드당 CPU 를 줄여도 지연은 안 나빠진다.** 단일 검색이 1코어만 쓰기 때문이다.
+> 샤드 4개에 `cpu: 6` 씩 주면 검색에는 1코어씩만 쓰이고 나머지는 동시 세션용이다.
+> **메모리가 더 중요하다** — 인덱스가 캐시에 들어가야 한다.
 >
 > 진짜 스케일아웃은 **자원을 추가**할 때 나온다 —
 > 그것이 [Stage 9](stage-09-cross-host.md) 에서 k8s-1 의 워커가 합류하는 의미다.
 > Stage 5 에서는 **"나눠도 손해가 없는가"** 를 본다.
 
-**샤드 2 → 4 → 6 으로 늘리며 지연을 기록하고 ②의 PQ 곡선과 겹쳐 본다.**
+**샤드 2 → 4 → 6 으로 늘리며 지연을 기록한다.**
+
+한 호스트 안에서는 이미 측정됐다 — **4샤드에서 4.27배.**
+이 단계에서 새로 알아낼 것은 **파드로 띄웠을 때, 그리고 노드를 넘었을 때**다.
+
+| 측정된 것 (한 호스트, podman) | 이 단계에서 확인할 것 |
+|---|---|
+| 4샤드 = 4.27배 | 파드·PVC 위에서도 같은가 |
+| 팬아웃 경합 없음 | Service 를 거치면 어떤가 |
+| — | **8 / 16 샤드에서 팬아웃 오버헤드가 언제 이기는가** |
 
 ---
 
@@ -362,7 +370,8 @@ listen oracle-read
 
 ### ⚠️ 이 단계에서는 I/O 에서 막힐 가능성이 높다
 
-**FHE 암호문은 원본보다 수십~수백 배 크다.** 풀스캔이면 읽을 바이트가 그만큼 늘어난다.
+인덱스가 메모리에 안 들어가면 디스크를 때린다. 100만 고유값에 459 MB 였으므로,
+**1억 고유값이면 45 GB** 다 — 그때부터 캐시에 안 들어간다.
 
 그런데 **지금은 모든 샤드·복제본이 k8s-2 한 대의 같은 디스크(`/dev/sda`)를 공유한다.**
 CPU 를 늘려도 디스크에서 막히면 확장이 멈춘다.

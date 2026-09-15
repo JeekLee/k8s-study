@@ -740,8 +740,10 @@ kubectl get pods -w                     # 다시 뜬다
 > kubectl get pvc                       # data-oracle-0 이 그대로 있다
 > ```
 
-> ⚠️ **FHE 암호문은 원본보다 수십~수백 배 크다.** PVC 크기를 넉넉히 잡는다.
-> 나중에 늘리려면 StorageClass 가 `allowVolumeExpansion` 을 지원해야 한다.
+> **크기 실측** — 컬럼 값은 AES(`RAW`)라 원본과 비슷하다. FHE 는 **인덱스 쪽**에 있고,
+> 인덱스는 **고유값당 ~460 바이트 + 고정 13 MB** 다 (100만 고유값 → 459 MB).
+> 행 수가 아니라 **카디널리티**를 보고 잡는다.
+> → [`notes/oracle/heracles-scaling.md`](../../notes/oracle/heracles-scaling.md)
 
 ---
 
