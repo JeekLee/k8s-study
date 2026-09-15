@@ -7,7 +7,8 @@ Oracle 관련 참고 자료.
 |---|---|
 | [`container-registry.md`](container-registry.md) | 이미지 받기 — 라이선스 동의, `imagePullSecret`, 미리 받아두기 |
 | [`heracles-install.md`](heracles-install.md) | **HEracles 설치** — 스크립트 분해, podman 경로, k8s 로 옮기기 |
-| [`heracles-scaling.md`](heracles-scaling.md) | ⭐ **확장성 실측** — 샤딩 4.27배, 단일 스레드, 카디널리티 |
+| [`heracles-query-model.md`](heracles-query-model.md) | ⭐ **왜 그렇게 동작하는가** — 인덱스·가지치기·샤딩·세션 |
+| [`heracles-scaling.md`](heracles-scaling.md) | **확장성 실측 수치** — 샤딩 4.27배, 단일 스레드, 카디널리티 |
 
 ## 왜 Oracle 인가
 

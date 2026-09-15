@@ -5,6 +5,9 @@
 > 목적은 [Stage 5](../../docs/stages/stage-05-db-scaling.md) 설계가 유효한지
 > **실습 전에 확인**하는 것이었다.
 
+> **왜 그런지**는 [`heracles-query-model.md`](heracles-query-model.md) 에 있다.
+> 이 문서는 수치와 측정 방법이다.
+
 ## 요약 — 샤딩은 유효하다
 
 | 구성 | 인덱스 크기 | 쿼리 지연 |
@@ -147,6 +150,17 @@ name  RAW(2000) NOT NULL,   -- AES-256-GCM ciphertext
 
 **정확히 1코어, 스레드 1개.** 32코어 중 하나만 쓴다.
 
+4세션을 동시에 돌리면 extproc 이 4개 뜬다 — **세션 1개 = extproc 1개 = 코어 1개.**
+
+```
+2646  99.7%  threads=1  extproc
+2648  99.8%  threads=1  extproc
+2656  99.7%  threads=1  extproc
+2676  99.6%  threads=1  extproc
+```
+
+세션별 QPS 11.86~12.05 로 단일 세션(12.3)과 거의 같다 — **경합이 없다.**
+
 `libheracles.so` 에 OpenMP 런타임은 없다 (`GOMP_*`, `omp_*` 심볼 0건).
 OpenBLAS 가 정적 링크돼 있지만 검색 경로에서는 스레드를 쓰지 않는 것으로 보인다.
 
@@ -210,6 +224,7 @@ CREATE TABLE bench_s0 AS SELECT * FROM bench WHERE MOD(TO_NUMBER(id),4) = 0;
 | AES 암호화 + INSERT | ~0.2 ms/행 (1M 행 196초) |
 | FHE 인덱스 구축 | ~32 µs/행 (1M 행 32초). **선형** |
 | 인덱스 크기 | 고유값당 ~460 바이트 + 고정 13 MB |
+| **원본 컬럼 대비** | `phone` 원본(AES) **39.1 MB** vs FHE 인덱스 **450 MB** = **11.5배** |
 
 인덱스 구축이 **선형이고 생각보다 빠르다.** 100만 행에 32초다.
 샤드로 나누면 병렬 구축도 가능하다.
