@@ -225,6 +225,8 @@ CREATE TABLE bench_s0 AS SELECT * FROM bench WHERE MOD(TO_NUMBER(id),4) = 0;
 | FHE 인덱스 구축 | ~32 µs/행 (1M 행 32초). **선형** |
 | 인덱스 크기 | 고유값당 ~460 바이트 + 고정 13 MB |
 | **원본 컬럼 대비** | `phone` 원본(AES) **39.1 MB** vs FHE 인덱스 **450 MB** = **11.5배** |
+| `allowedSearchTypes` | Exact / +Prefix / +Substring 모두 **375 MB · ~19초로 동일** (영향 없음) |
+| 문자열 검색 | Prefix = Exact 비용, **Substring 4.6배**. ends-with 불가 → [`heracles-query-model.md`](heracles-query-model.md) §8 |
 
 인덱스 구축이 **선형이고 생각보다 빠르다.** 100만 행에 32초다.
 샤드로 나누면 병렬 구축도 가능하다.
