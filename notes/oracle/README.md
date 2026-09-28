@@ -9,6 +9,7 @@ Oracle 관련 참고 자료.
 | [`heracles-install.md`](heracles-install.md) | **HEracles 설치** — 스크립트 분해, podman 경로, k8s 로 옮기기 |
 | [`heracles-query-model.md`](heracles-query-model.md) | ⭐ **왜 그렇게 동작하는가** — 인덱스·가지치기·샤딩·세션 |
 | [`heracles-scaling.md`](heracles-scaling.md) | **확장성 실측 수치** — 샤딩 4.27배, 단일 스레드, 카디널리티 |
+| [`heracles-postgres.md`](heracles-postgres.md) | **PostgreSQL(pgHEaaN) 비교** — 검색은 동등, 히트 많으면 2배 차이 |
 
 ## 왜 Oracle 인가
 
