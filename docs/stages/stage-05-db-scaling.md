@@ -416,6 +416,8 @@ Stage 10  HA 완성 후 재측정 → 개선 폭 확인
 | 데이터셋 | 행 수·암호문 크기. **풀스캔 시간이 측정 가능한 범위**여야 한다 |
 | 노드 자원 | 워커 12 vCPU / 96 GiB / 데이터 디스크 500 GB — [Stage 4 §0](stage-04-workloads.md) 에서 확장 |
 | **HEracles 키** | ⭐ **전 인스턴스가 같은 키를 써야 한다.** 샤드마다 키가 다르면 데이터를 나눠 담을 수 없다 → [`notes/oracle/heracles-install.md`](../../notes/oracle/heracles-install.md) |
+| **데이터 적재 방식** | ⚠️ 트리거로 한 행씩 넣으면 **154 ms/행**이다. `p_auto_sync => 'N'` 으로 넣고 `reindex` 해야 한다 (0.048 ms/행) |
+| **UPDATE 금지** | ⚠️ 암호화 컬럼을 UPDATE 하면 **인덱스가 갱신되지 않고 유령 결과가 남는다** → [`notes/oracle/heracles-query-model.md`](../../notes/oracle/heracles-query-model.md) §10-2 |
 | 부하 생성기 이미지 | `apps/loadgen` 으로 추가 예정 |
 
 ## 자주 막히는 곳
